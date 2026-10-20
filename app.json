@@ -1,17 +1,31 @@
 {
   "expo": {
-    "name": "pasta-app",
-    "slug": "pasta-app",
+    "name": "Lumière Sucrée",
+    "slug": "lumiere-sucree",
+    "scheme": "lumieresucree",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#FAF6F0",
+
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lumieresucree.app",
+      "usesAppleSignIn": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Lumière Sucrée, pasta tasarımlarınıza ilham vermesi için davetiye veya konsept fotoğraflarını seçmenize olanak tanır.",
+        "NSPhotoLibraryAddUsageDescription": "Oluşturduğunuz şaheser pasta tasarımlarını fotoğraf galerinize yüksek çözünürlükte kaydetmek için izin gereklidir.",
+        "NSCameraUsageDescription": "Özel gününüz için ilham aldığınız detayların anlık fotoğrafını çekerek pasta tasarımına dönüştürmenizi sağlar."
+      }
     },
     "android": {
+      "package": "com.lumieresucree.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FAF6F0",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -20,6 +34,24 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-status-bar",
+      "expo-image",
+      "expo-sharing",
+      "expo-apple-authentication",
+      "@sentry/react-native",
+      "expo-localization",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#FAF6F0"
+        }
+      ]
+    ]
   }
 }
