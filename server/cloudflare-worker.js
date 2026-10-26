@@ -68,6 +68,51 @@ function checkRateLimit(identifier) {
   };
 }
 
+// ==========================================
+// PROMPT INJECTION & XSS SHIELD (EDGE LAYER)
+// ==========================================
+const MAX_PROMPT_LENGTH = 500;
+const SUSPICIOUS_PROMPT_PATTERNS = [
+  /ignore\s+(all\s+)?(previous|prior|above)\s+instructions/i,
+  /disregard\s+(all\s+)?(previous|prior|above)\s+instructions/i,
+  /system\s+prompt/i,
+  /reveal\s+(your\s+)?(api[_\s-]?key|secret|system\s+instructions)/i,
+  /print\s+(your\s+)?(api[_\s-]?key|secret)/i,
+  /jailbreak/i,
+  /dan\s+mode/i,
+  /tüm\s+talimatlar[ıi]\s+unut/i,
+  /sistem\s+talimatlar[ıi]n[ıi]\s+yaz/i,
+  /api\s+anahtar[ıi]n[ıi]\s+(ver|yaz|göster)/i,
+];
+
+function validateAndSanitizePrompt(prompt) {
+  if (!prompt || typeof prompt !== 'string') {
+    return { valid: false, error: 'Geçersiz veya boş prompt parametresi.' };
+  }
+
+  // DoS / Buffer Overflow engelleme
+  if (prompt.length > MAX_PROMPT_LENGTH) {
+    return {
+      valid: false,
+      error: `Pasta açıklaması maksimum ${MAX_PROMPT_LENGTH} karakter olabilir.`,
+    };
+  }
+
+  // Jailbreak taraması
+  for (const pattern of SUSPICIOUS_PROMPT_PATTERNS) {
+    if (pattern.test(prompt)) {
+      return {
+        valid: false,
+        error: 'Güvenlik ilkeleri gereği bu metin işlenemedi.',
+      };
+    }
+  }
+
+  // HTML / XSS taglerini temizle
+  const sanitized = prompt.replace(/<[^>]*>?/gm, '').trim();
+  return { valid: true, sanitized };
+}
+
 export default {
   async fetch(request, env, ctx) {
     // 1. CORS Preflight (OPTIONS)
@@ -83,9 +128,21 @@ export default {
 
     const url = new URL(request.url);
 
-    // 2. RevenueCat Webhook Uç Noktası
+    // 2. RevenueCat Webhook Uç Noktası (Yetkili)
     if (request.method === 'POST' && url.pathname === '/api/revenuecat-webhook') {
       try {
+        // GÜVENLİK: Webhook Secret Yetkilendirme Kontrolü
+        const authHeader = request.headers.get('Authorization');
+        const webhookSecret = env.REVENUECAT_WEBHOOK_SECRET;
+        if (webhookSecret) {
+          if (!authHeader || authHeader !== `Bearer ${webhookSecret}`) {
+            return new Response(JSON.stringify({ error: 'UNAUTHORIZED_WEBHOOK_CALL' }), {
+              status: 401,
+              headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+            });
+          }
+        }
+
         const payload = await request.json();
         const event = payload?.event;
         console.log(`[RevenueCat Webhook] Olay: ${event?.type}, Kullanıcı: ${event?.app_user_id}, Ürün: ${event?.product_id}`);
@@ -101,11 +158,14 @@ export default {
       }
     }
 
-    // 3. Yalnızca POST /api/generate-cake isteklerine izin ver
-    if (request.method !== 'POST' || url.pathname !== '/api/generate-cake') {
+    // 3. Yalnızca POST /api/generate-cake ve POST /api/generate-recipe isteklerine izin ver
+    if (
+      request.method !== 'POST' ||
+      (url.pathname !== '/api/generate-cake' && url.pathname !== '/api/generate-recipe')
+    ) {
       return new Response(JSON.stringify({ error: 'Endpoint bulunamadı' }), {
         status: 404,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       });
     }
 
@@ -153,23 +213,119 @@ export default {
 
     try {
       const body = await request.json();
-      const prompt = body?.prompt;
-      const model = body?.model || 'gemini-3-pro-image';
-      const referenceImageBase64 = body?.referenceImageBase64;
 
-      if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+      // ==========================================
+      // TARİF ÜRETİMİ (Gemini 3.1 Flash Lite)
+      // ==========================================
+      if (url.pathname === '/api/generate-recipe') {
+        const promptCheck = validateAndSanitizePrompt(body?.prompt);
+        if (!promptCheck.valid) {
+          return new Response(JSON.stringify({ error: promptCheck.error }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          });
+        }
+        const prompt = promptCheck.sanitized;
+        const details = body?.details || {};
+        const recipeModel = body?.model || 'gemini-3.1-flash-lite';
+        const maxTokens = Math.min(body?.maxOutputTokens || 10000, 10000);
+
+        const flavor = details.flavor || 'Klasik Vanilya & Pastacı Kreması';
+        const guests = details.guests ? `${details.guests} kişilik` : '10-12 kişilik';
+        const tier = details.tier ? `${details.tier} katlı` : 'Tek katlı';
+        const fillings = details.fillingTags?.length ? details.fillingTags.join(', ') : 'Gourmet krema & taze meyve';
+        const coating = details.coating || 'Hafif vanilyalı krema kaplama';
+
+        const recipePrompt = `Sen haute pâtisserie alanında ödüllü bir baş pastacısın.
+Kullanıcının tasarladığı ve üretilen fotoğraftaki pastanın BİREBİR AYNISINI ev mutfağında sıfırdan yapabilmesi için 5.000 İLE 10.000 TOKEN ARASINDA ÇOK DETAYLI, EKSİKSİZ BİR MASTERCLASS REHBERİ HAZIRLA:
+- Tasarım: ${prompt}
+- Porsiyon: ${guests}, Kat: ${tier}, Lezzet: ${flavor}, Dolgu: ${fillings}, Kaplama: ${coating}
+
+ZORUNLU BÖLÜMLER:
+1. ALINMASI GEREKENLER & ALIŞVERİŞ LİSTESİ (Süpermarket malzemeleri + pastacılık toptancısı özel ürünleri + çember, duy, spatula gibi gerekli ekipmanlar).
+2. PANDİSPANYA / KEKİN HAZIRLANIŞI (Kaç adet yumurta konmalı, un/şeker gramajı, fırın derecesi ve süresi, çökmeden kabarma püf noktaları).
+3. İPEKSİ İÇ KREMA VE DOLGULARIN YAPILIŞI (Pişirme, kıvam tutturma, kesilmeme sırrı).
+4. DIŞ SIVAMA VE KAPLAMA KREMASI (Keskin kenarlar, pürüzsüzlük).
+5. ADIM ADIM MONTAJ (Islatma şurubu, katlandırma, crumb coat ve final coat).
+6. FOTOĞRAFTAKİ PASTAYLA BİREBİR AYNI SÜSLEME VE DEKORASYON (Renk tonları, çiçekler, drip, varak, figürler, duy uçları ve süsleme teknikleri).
+7. USTA ŞEFTEN ALTIN PÜF NOKTALARI VE SERVİS.
+
+Kurallar: Türkçe, samimi ve profesyonel üslup, Markdown formatı. ÇIKTI UZUNLUĞU: Asla özet veya kısa tutma; 5.000 ile 10.000 token aralığında tüm detayları, ölçüleri ve teknikleri eksiksiz doldur.`;
+
+        const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${recipeModel}:generateContent?key=${apiKey}`;
+        const googleResponse = await fetch(googleUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: recipePrompt }] }],
+            generationConfig: {
+              maxOutputTokens: maxTokens,
+              temperature: 0.7,
+            },
+          }),
+        });
+
+        if (!googleResponse.ok) {
+          const err = await googleResponse.json().catch(() => ({}));
+          return new Response(JSON.stringify({ error: err?.error?.message || `Google API Hatası (${googleResponse.status})` }), {
+            status: googleResponse.status,
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          });
+        }
+
+        const data = await googleResponse.json();
+        const recipeText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        // ZERO-CLOUD STORAGE: Sunucu tarifi diske/veritabanına kaydetmez, doğrudan kullanıcının cihazına iletir.
+        return new Response(JSON.stringify({ success: true, recipe: recipeText?.trim() || '' }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+            'X-Zero-Cloud-Storage': 'true',
+          },
+        });
+      }
+
+      const promptCheck = validateAndSanitizePrompt(body?.prompt);
+      if (!promptCheck.valid) {
         return new Response(
-          JSON.stringify({ error: 'Geçersiz veya boş prompt parametresi.' }),
-          { status: 400, headers: { 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: promptCheck.error }),
+          { status: 400, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
         );
       }
 
+      const prompt = promptCheck.sanitized;
+      const model = body?.model || 'gemini-nano-banana-2.1';
+      const referenceImageBase64 = body?.referenceImageBase64;
+      const imageSize = body?.imageSize === '4K' ? '4K' : '2K';
+
       // 4. Pastacılık Kalite & Çok Modlu (Multimodal) Prompt Enjeksiyonu
       const multimodalGuidance = referenceImageBase64
-        ? ' EXTREMELY IMPORTANT MULTIMODAL INSTRUCTION: Carefully examine the attached inspiration photo (such as wedding dress fabric, invitation card, floral theme, or venue decor). Harmoniously incorporate its exact color palette, motifs, textures, and aesthetic styling into the cake decorations, frosting, and presentation.'
+        ? ' EXTREMELY IMPORTANT MULTIMODAL INSTRUCTION: Carefully examine the attached inspiration photo (such as fabric texture, color palette, graphic motif, or stationery style). Harmoniously incorporate its exact color palette, motifs, textures, and aesthetic styling into the cake decorations, frosting, and presentation without adding extraneous unrequested items.'
         : '';
 
-      const enhancedPrompt = `Professional high-end gourmet culinary food photography of an exquisite handcrafted cake: ${prompt}.${multimodalGuidance} Studio lighting, award-winning pastry chef presentation, hyperrealistic texture, clean elegant background, shallow depth of field, 8k resolution.`;
+      const lowerPrompt = prompt.toLocaleLowerCase('tr-TR');
+      const mentionsFlowers =
+        lowerPrompt.includes('çiçek') ||
+        lowerPrompt.includes('cicek') ||
+        lowerPrompt.includes('gül') ||
+        lowerPrompt.includes('gul') ||
+        lowerPrompt.includes('papatya') ||
+        lowerPrompt.includes('orkide') ||
+        lowerPrompt.includes('floral') ||
+        lowerPrompt.includes('flower') ||
+        lowerPrompt.includes('rose') ||
+        lowerPrompt.includes('blossom') ||
+        lowerPrompt.includes('şakayık') ||
+        lowerPrompt.includes('sakayik') ||
+        lowerPrompt.includes('botanik');
+
+      const flowerConstraint = mentionsFlowers
+        ? ''
+        : ' CRITICAL NEGATIVE CONSTRAINT - NO FLOWERS: Flowers are NOT requested in the prompt. Do NOT add any flowers, sugar flowers, edible roses, floral accents, petals, leaves, or botanical decorations anywhere on or around the cake. The cake surface must remain completely free of flowers.';
+
+      const enhancedPrompt = `Professional high-end gourmet culinary food photography of an exquisite handcrafted cake: ${prompt}.${multimodalGuidance} Studio lighting, award-winning pastry chef presentation, hyperrealistic texture, clean elegant background, shallow depth of field, 8k resolution. STRICT FIDELITY RULE: Adhere 100% strictly and exclusively to the user description. Do NOT add any unrequested decorations, unrequested toppings, unrequested pearls, unrequested figurines, or unrequested embellishments. Only depict what is explicitly written in the prompt.${flowerConstraint} KATI KURAL: Yazılanların kesinlikle dışına çıkma; metinde belirtilmeyen hiçbir süsleme, çiçek veya detayı ekleme.`;
 
       // 5. Gemini 3 Pro API İsteği (Google AI Studio)
       const isImagen = model.toLowerCase().startsWith('imagen');
@@ -205,7 +361,7 @@ export default {
             responseModalities: ['IMAGE'],
             imageConfig: {
               aspectRatio: '3:4',
-              imageSize: '2K',
+              imageSize,
             },
           },
         };
@@ -316,7 +472,7 @@ export default {
         );
       }
 
-      // 6. Güvenli İstemci Yanıtı
+      // 6. Güvenli İstemci Yanıtı (ZERO-CLOUD STORAGE: Görsel sunucuda depolanmaz, doğrudan istemciye aktarılır)
       return new Response(
         JSON.stringify({
           success: true,
@@ -327,6 +483,8 @@ export default {
           headers: {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+            'X-Zero-Cloud-Storage': 'true',
           },
         }
       );

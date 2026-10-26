@@ -4,7 +4,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import InfoSheet, { sheetStyles } from './InfoSheet';
 import { ChevronDownIcon, HelpCircleIcon, MailIcon } from './Icons';
-import { CREDITS_PER_GENERATION, INITIAL_CREDITS } from '../context/CreditsContext';
+import {
+  CREDITS_PER_GENERATION,
+  CREDITS_PER_GENERATION_4K,
+  INITIAL_CREDITS,
+} from '../context/CreditsContext';
 import { home } from '../theme/theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -20,7 +24,11 @@ const FAQ_GROUPS: FaqGroup[] = [
     items: [
       {
         q: 'Bir pasta tasarımı kaç kredi?',
-        a: `Her tasarım ${CREDITS_PER_GENERATION} kredi. Yeni hesaplara hoş geldin hediyesi olarak ${INITIAL_CREDITS} kredi tanımlanır; bakiyeni Profil sekmesinden takip edebilirsin.`,
+        a: `Her pasta tasarımı ${CREDITS_PER_GENERATION} kredidir ve stüdyo kalitesinde 4K Ultra HD olarak üretilir. Yeni hesaplara hoş geldin hediyesi olarak ${INITIAL_CREDITS} kredi tanımlanır.`,
+      },
+      {
+        q: 'Büyük paketler ne kadar avantajlı?',
+        a: 'Paket büyüdükçe kredi başı fiyat düşer. Kredilerim ekranında her paketin en küçük pakete göre yüzde kaç tasarruf sağladığını ve tasarım başı fiyatını görebilirsin.',
       },
       {
         q: 'Görsel oluşturulamazsa kredim ne olur?',
@@ -58,11 +66,11 @@ const FAQ_GROUPS: FaqGroup[] = [
     items: [
       {
         q: 'Hatırlatma bildirimi ne zaman gelir?',
-        a: 'Eklediğin her özel günden 14 gün önce sabah 10:00\'da bildirim alırsın; böylece sürpriz pastanı hazırlamaya vaktin olur.',
+        a: 'Özel gün eklerken ne zaman hatırlatılacağını seçersin (aynı gün, 1 gün, 3 gün, 1 hafta, 2 hafta ya da 1 ay önce); bildirim o gün sabah 10:00\'da gelir.',
       },
       {
         q: 'Bildirimler gelmiyor, ne yapmalıyım?',
-        a: 'Cihaz ayarlarından uygulamaya bildirim izni verdiğinden emin ol. Özel Gün Takvimi\'ndeki "Test Et" butonuyla bildirimleri hemen deneyebilirsin.',
+        a: 'Cihaz ayarlarından uygulamaya bildirim izni verdiğinden emin ol.',
       },
     ],
   },

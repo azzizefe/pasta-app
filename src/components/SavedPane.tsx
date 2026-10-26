@@ -12,11 +12,11 @@ import { useSavedCakes } from '../context/SavedCakesContext';
 import { BookmarkIcon, ChefHatIcon, HeartIcon, SparkleIcon } from './Icons';
 import CakeDetailModal from './CakeDetailModal';
 import CakeImage from './CakeImage';
-import { CakeKind, SavedCake, SavedCakeFilter } from '../types/savedCake';
+import { CakeDetails, CakeKind, SavedCake, SavedCakeFilter } from '../types/savedCake';
 import { fonts, home } from '../theme/theme';
 
 interface Props {
-  onOpenBuilder: (kind: CakeKind) => void;
+  onOpenBuilder: (kind: CakeKind, details?: CakeDetails) => void;
 }
 
 const FILTERS: { id: SavedCakeFilter; label: string }[] = [
@@ -63,32 +63,40 @@ export default function SavedPane({ onOpenBuilder }: Props) {
 
       {/* Kategori Filtre Çipleri */}
       {savedCakes.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterBar}
-          style={styles.filterScroll}
-        >
-          {FILTERS.map((f) => {
-            const isActive = filter === f.id;
-            return (
-              <Pressable
-                key={f.id}
-                onPress={() => setFilter(f.id)}
-                style={[styles.filterChip, isActive && styles.filterChipActive]}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    isActive && styles.filterChipTextActive,
+        <View style={styles.filterWrapper}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterBar}
+            style={styles.filterScroll}
+          >
+            {FILTERS.map((f) => {
+              const isActive = filter === f.id;
+              return (
+                <Pressable
+                  key={f.id}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  onPress={() => setFilter(f.id)}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    isActive && styles.filterChipActive,
+                    pressed && styles.filterChipPressed,
                   ]}
                 >
-                  {f.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      isActive && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {f.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
       )}
 
       {/* Ana Liste veya Boş Durum */}
@@ -143,7 +151,6 @@ export default function SavedPane({ onOpenBuilder }: Props) {
               return (
                 <Pressable
                   key={cake.id}
-                  accessibilityRole="button"
                   onPress={() => setSelectedCake(cake)}
                   style={styles.cardHit}
                 >
@@ -180,6 +187,14 @@ export default function SavedPane({ onOpenBuilder }: Props) {
                           filled={cake.isFavorite}
                         />
                       </Pressable>
+
+                      {/* Kendi Pastanı Oluştur Tarif Rozeti */}
+                      {cake.kind === 'diy' && (
+                        <View style={styles.cardRecipeBadge}>
+                          <ChefHatIcon size={11} color="#FFFDF9" />
+                          <Text style={styles.cardRecipeBadgeText}>Şef Tarifi</Text>
+                        </View>
+                      )}
                     </View>
 
                     {/* Bilgiler */}
@@ -189,13 +204,11 @@ export default function SavedPane({ onOpenBuilder }: Props) {
                       </Text>
 
                       <View style={styles.cardMeta}>
-                        {cake.details?.tier ? (
-                          <Text style={styles.cardTag}>
-                            {cake.details.tier} Katlı
-                          </Text>
-                        ) : (
-                          <Text style={styles.cardTag}>Özel Tasarım</Text>
-                        )}
+                        <Text style={styles.cardTag}>
+                          {cake.kind === 'diy'
+                            ? (cake.details?.tier ? `${cake.details.tier} Katlı • Tarifli` : 'Şefin Özel Tarifi')
+                            : (cake.details?.tier ? `${cake.details.tier} Katlı` : 'Özel Tasarım')}
+                        </Text>
                         <Text style={styles.cardDate}>{formattedDate}</Text>
                       </View>
                     </View>
@@ -216,7 +229,7 @@ export default function SavedPane({ onOpenBuilder }: Props) {
         onDelete={deleteCake}
         onRemix={(cake) => {
           setSelectedCake(null);
-          onOpenBuilder(cake.kind);
+          onOpenBuilder(cake.kind, cake.details);
         }}
       />
     </View>
@@ -265,17 +278,22 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: home.ink,
   },
+  filterWrapper: {
+    zIndex: 20,
+    elevation: 4,
+  },
   filterScroll: {
-    maxHeight: 46,
+    maxHeight: 52,
+    flexGrow: 0,
   },
   filterBar: {
     paddingHorizontal: 20,
-    paddingVertical: 4,
+    paddingVertical: 6,
     gap: 8,
   },
   filterChip: {
     paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingVertical: 8,
     borderRadius: 16,
     backgroundColor: 'rgba(255, 255, 255, 0.75)',
     borderWidth: 1,
@@ -284,6 +302,9 @@ const styles = StyleSheet.create({
   filterChipActive: {
     backgroundColor: home.ctaFrom,
     borderColor: 'rgba(243, 217, 166, 0.4)',
+  },
+  filterChipPressed: {
+    opacity: 0.8,
   },
   filterChipText: {
     fontSize: 13,
@@ -299,7 +320,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 36,
-    marginTop: -30,
+    paddingVertical: 32,
   },
   emptyIconRing: {
     width: 68,
@@ -443,5 +464,25 @@ const styles = StyleSheet.create({
   cardDate: {
     fontSize: 10,
     color: 'rgba(110, 85, 55, 0.7)',
+  },
+  cardRecipeBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(42, 26, 21, 0.82)',
+    paddingHorizontal: 7,
+    paddingVertical: 3.5,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(243, 217, 166, 0.45)',
+  },
+  cardRecipeBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#FFFDF9',
+    letterSpacing: 0.3,
   },
 });

@@ -92,6 +92,9 @@ export async function getIAPPackages(): Promise<IAPPackage[]> {
               ...pkg,
               priceTRY: match.product.priceString || pkg.priceTRY,
               priceUSD: match.product.priceString || pkg.priceUSD,
+              priceValue:
+                typeof match.product.price === 'number' ? match.product.price : pkg.priceValue,
+              currencyCode: match.product.currencyCode || pkg.currencyCode,
             };
           }
           return pkg;
@@ -139,6 +142,14 @@ export async function purchaseIAPPackage(pkg: IAPPackage): Promise<PurchaseResul
         error: error?.message || 'Apple/Google mağaza ödemesi tamamlanamadı.',
       };
     }
+  }
+
+  // A production build without a real store (e.g. the web app) must never hand out free credits.
+  if (!__DEV__) {
+    return {
+      success: false,
+      error: 'Ödeme sistemi bu platformda henüz aktif değil.',
+    };
   }
 
   // ========================================================

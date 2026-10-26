@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, Image, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { showAlert } from '../utils/alert';
 import * as StoreReview from 'expo-store-review';
 
 import InfoSheet, { SheetRow, sheetStyles } from './InfoSheet';
@@ -22,7 +23,7 @@ export default function AboutSheet({ visible, onClose, onPrivacyPolicy, onTermsO
     if (available) {
       await StoreReview.requestReview().catch(() => {});
     } else {
-      Alert.alert('Teşekkürler!', 'Değerlendirme özelliği uygulama mağazadan indirildiğinde kullanılabilir.');
+      showAlert('Teşekkürler!', 'Değerlendirme özelliği uygulama mağazadan indirildiğinde kullanılabilir.');
     }
   };
 
@@ -32,16 +33,13 @@ export default function AboutSheet({ visible, onClose, onPrivacyPolicy, onTermsO
 
   const handleContact = () => {
     Linking.openURL(buildSupportMailto('[Lumière Sucrée] Merhaba')).catch(() => {
-      Alert.alert('E-posta Uygulaması Açılamadı', `Bize ${SUPPORT_EMAIL} adresinden ulaşabilirsin.`);
+      showAlert('E-posta Uygulaması Açılamadı', `Bize ${SUPPORT_EMAIL} adresinden ulaşabilirsin.`);
     });
   };
 
   return (
     <InfoSheet visible={visible} title="Hakkında" onClose={onClose}>
       <View style={styles.brand}>
-        <View style={styles.iconFrame}>
-          <Image source={APP_ICON} style={styles.icon} accessibilityIgnoresInvertColors />
-        </View>
         <Text style={styles.appName}>Lumière Sucrée</Text>
         <Text style={styles.tagline}>Hayalindeki pastayı yapay zekayla tasarla</Text>
         <View style={styles.versionPill}>

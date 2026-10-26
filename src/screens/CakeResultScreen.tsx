@@ -1,7 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Linking,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,31 +13,39 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+// @ts-ignore
+import { BlurView } from 'expo-blur';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   BookmarkIcon,
+  ChefHatIcon,
   ChevronLeftIcon,
+  CloseIcon,
   CoinsIcon,
+  DocumentIcon,
   DownloadIcon,
   HeartIcon,
   ShareIcon,
   SparkleIcon,
 } from '../components/Icons';
 import CakeImage from '../components/CakeImage';
+import DiyRecipeCard from '../components/DiyRecipeCard';
 import GeneratingLoader from '../components/GeneratingLoader';
+import PastryOrderSheetModal from '../components/PastryOrderSheetModal';
 import { Reveal, ShineSweep } from '../components/motion';
 import SmartReviewModal from '../components/SmartReviewModal';
 import { isGeminiConfigured } from '../config/env';
-import { CREDITS_PER_GENERATION, useCredits } from '../context/CreditsContext';
+import { getGenerationCost, useCredits } from '../context/CreditsContext';
 import { useSavedCakes } from '../context/SavedCakesContext';
 import { trackCreditConsumption } from '../services/analyticsService';
 import { generateCakeImage } from '../services/geminiImageService';
+import { generateCakeRecipe } from '../services/geminiRecipeService';
 import { saveCakeImageToDevice } from '../services/imageSaveService';
 import { registerPositiveAction } from '../services/reviewService';
 import { resolveAssetUri } from '../utils/assetHelper';
-import { CakeDetails, CakeKind } from '../types/savedCake';
+import { CakeDetails, CakeKind, ImageQuality } from '../types/savedCake';
 import { fonts, home } from '../theme/theme';
 
 const CONTENT_MAX_WIDTH = 460;
@@ -58,6 +69,7 @@ type Props = {
   title: string;
   prompt: string;
   kind?: CakeKind;
+  quality?: ImageQuality;
   details?: CakeDetails;
   referenceImageBase64?: string;
   referenceImageUri?: string;
@@ -68,12 +80,14 @@ export default function CakeResultScreen({
   title,
   prompt,
   kind = 'custom',
+  quality = 'standard',
   details,
   referenceImageBase64,
   referenceImageUri,
   onBack,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const cost = getGenerationCost(quality, kind);
   const {
     credits,
     deductCredits,
@@ -81,7 +95,7 @@ export default function CakeResultScreen({
     hasEnoughCredits,
     openPurchaseModal,
   } = useCredits();
-  const { saveCake, toggleFavorite } = useSavedCakes();
+  const { saveCake, updateCake, toggleFavorite } = useSavedCakes();
 
   const [isLoading, setIsLoading] = useState(true);
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -95,6 +109,45 @@ export default function CakeResultScreen({
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [isSamplePreview, setIsSamplePreview] = useState(false);
   const [showReviewModal, setShowReviewModal] = useState(false);
+  const [isZoomModalOpen, setIsZoomModalOpen] = useState(false);
+  const [isOrderSheetOpen, setIsOrderSheetOpen] = useState(false);
+
+  // Gemini 3.1 Flash Lite Özel Ev Yapımı Pasta Tarifi Durumu (Kendi Pastanı Oluştur için)
+  const [recipeText, setRecipeText] = useState<string | null>(details?.recipe || null);
+  const [isRecipeLoading, setIsRecipeLoading] = useState<boolean>(kind === 'diy' && !details?.recipe);
+  const [recipeError, setRecipeError] = useState<string | null>(null);
+
+  const savedCakeIdRef = useRef<string | null>(null);
+  const recipeTextRef = useRef<string | null>(details?.recipe || null);
+
+  const fetchRecipe = useCallback(
+    async (promptOverride?: string) => {
+      if (kind !== 'diy') return;
+      setIsRecipeLoading(true);
+      setRecipeError(null);
+      const targetPrompt = promptOverride || currentPrompt;
+
+      const res = await generateCakeRecipe(targetPrompt, details);
+      setIsRecipeLoading(false);
+      if (res.success && res.recipe) {
+        recipeTextRef.current = res.recipe;
+        setRecipeText(res.recipe);
+        const targetId = savedCakeIdRef.current || savedCakeId;
+        if (targetId) {
+          updateCake(targetId, {
+            recipe: res.recipe,
+            details: {
+              ...details,
+              recipe: res.recipe,
+            },
+          });
+        }
+      } else {
+        setRecipeError(res.error || 'Tarif oluşturulamadı.');
+      }
+    },
+    [kind, currentPrompt, details, savedCakeId, updateCake]
+  );
 
   const fetchImage = useCallback(
     async (promptOverride?: string) => {
@@ -103,8 +156,8 @@ export default function CakeResultScreen({
 
       const targetPrompt = promptOverride || currentPrompt;
 
-      // Kredi kontrolü: 1 pasta = CREDITS_PER_GENERATION kredi
-      if (!hasEnoughCredits(CREDITS_PER_GENERATION)) {
+      // Kredi kontrolü: seçilen kaliteye göre (Standart / 4K)
+      if (!hasEnoughCredits(cost)) {
         setIsLoading(false);
         setErrorMessage('INSUFFICIENT_CREDITS');
         return;
@@ -116,15 +169,19 @@ export default function CakeResultScreen({
         return;
       }
 
-      // CREDITS_PER_GENERATION kredi tahsil edilir ve tüketim hızı izlenir
-      deductCredits(CREDITS_PER_GENERATION);
+      // Kredi tahsil edilir; tahsil edilemezse (bakiye 0 / yetersiz / geçersiz tutar) görsel üretilmez.
+      if (!deductCredits(cost)) {
+        setIsLoading(false);
+        setErrorMessage('INSUFFICIENT_CREDITS');
+        return;
+      }
       trackCreditConsumption(
-        CREDITS_PER_GENERATION,
-        `Görsel Üretimi (${title})`,
-        Math.max(0, credits - CREDITS_PER_GENERATION)
+        cost,
+        `Görsel Üretimi (${title}${quality === '4k' ? ', 4K' : ''})`,
+        Math.max(0, credits - cost)
       );
 
-      const result = await generateCakeImage(targetPrompt, referenceImageBase64);
+      const result = await generateCakeImage(targetPrompt, referenceImageBase64, quality);
       setIsLoading(false);
 
       if (result.success && result.imageUri) {
@@ -135,32 +192,47 @@ export default function CakeResultScreen({
         }
         // Başarılı üretimi otomatik olarak koleksiyona kaydet
         try {
+          const finalRecipe = recipeTextRef.current || recipeText || details?.recipe;
           const saved = await saveCake({
             title,
             prompt: targetPrompt,
             imageUri: result.imageUri,
             kind,
+            recipe: finalRecipe,
             details: {
               ...details,
               referenceImageUri,
               referenceImageBase64,
+              recipe: finalRecipe,
             },
             isFavorite: false,
           });
+          savedCakeIdRef.current = saved.id;
           setSavedCakeId(saved.id);
+
+          // Eğer tarif daha önce hazırlandıysa ama kayıtta henüz yoksa senkronize et
+          if (recipeTextRef.current && !saved.recipe) {
+            updateCake(saved.id, {
+              recipe: recipeTextRef.current,
+              details: {
+                ...details,
+                recipe: recipeTextRef.current,
+              },
+            });
+          }
         } catch (err) {
           console.warn('Otomatik kayıt hatası:', err);
         }
       } else {
         // Sıfır Risk Garantisi (Zero-Risk Guarantee): Teknik hatada kredi otomatik iade edilir
-        addCredits(CREDITS_PER_GENERATION);
+        addCredits(cost);
         const reason = result.error || 'Görsel oluşturulamadı.';
         setErrorMessage(
-          `${reason}\n(Harcanan ${CREDITS_PER_GENERATION} kredi bakiyenize otomatik olarak iade edildi.)`
+          `${reason}\n(Harcanan ${cost} kredi bakiyenize otomatik olarak iade edildi.)`
         );
       }
     },
-    [hasEnoughCredits, deductCredits, addCredits, credits, currentPrompt, referenceImageBase64, referenceImageUri, title, kind, details, saveCake]
+    [hasEnoughCredits, deductCredits, addCredits, credits, cost, quality, currentPrompt, referenceImageBase64, referenceImageUri, title, kind, details, recipeText, saveCake, updateCake]
   );
 
   const handleApplyEdit = useCallback(() => {
@@ -169,7 +241,10 @@ export default function CakeResultScreen({
     setIsEditOpen(false);
     setEditNotes('');
     fetchImage(newPrompt);
-  }, [editNotes, currentPrompt, fetchImage]);
+    if (kind === 'diy') {
+      fetchRecipe(newPrompt);
+    }
+  }, [editNotes, currentPrompt, fetchImage, kind, fetchRecipe]);
 
   const handleLoadSamplePreview = useCallback(async () => {
     const sampleAsset = getCategorySampleAsset(title);
@@ -240,6 +315,7 @@ export default function CakeResultScreen({
     }
   }, [imageUri, title]);
 
+
   const handleShare = useCallback(async () => {
     let uriToShare = imageUri;
 
@@ -261,20 +337,149 @@ export default function CakeResultScreen({
 
     setIsDownloading(true);
     try {
-      const result = await saveCakeImageToDevice(uriToShare, title);
-      setFeedbackMessage(result.message);
+      if (Platform.OS === 'web') {
+        if (typeof navigator !== 'undefined' && navigator.share) {
+          await navigator.share({
+            title: `${title} - Lumière Sucrée`,
+            text: `Özel tasarım ${title}: ${currentPrompt.slice(0, 100)}...`,
+            url: window.location.href,
+          });
+          setFeedbackMessage('Paylaşıldı! 🌟');
+        } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+          await navigator.clipboard.writeText(
+            `Lumière Sucrée ile tasarladığım ${title}!\n${currentPrompt.slice(0, 120)}`
+          );
+          setFeedbackMessage('Pasta tarifi ve bilgisi panoya kopyalandı! 📋');
+        } else {
+          const result = await saveCakeImageToDevice(uriToShare, title);
+          setFeedbackMessage(result.message);
+        }
+      } else {
+        const Sharing = require('expo-sharing');
+        const FileSystem = require('expo-file-system/legacy');
+        let fileToShare = uriToShare;
+
+        if (uriToShare.startsWith('data:image/')) {
+          const filename = `lumiere-share-${Date.now()}.jpg`;
+          const cachePath = `${FileSystem.cacheDirectory}${filename}`;
+          const base64Data = uriToShare.replace(/^data:image\/[a-zA-Z]+;base64,/, '');
+          await FileSystem.writeAsStringAsync(cachePath, base64Data, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          fileToShare = cachePath;
+        }
+
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileToShare, {
+            mimeType: 'image/jpeg',
+            dialogTitle: `${title} Paylaş`,
+          });
+          setFeedbackMessage('Paylaşım penceresi açıldı.');
+        } else {
+          const result = await saveCakeImageToDevice(uriToShare, title);
+          setFeedbackMessage(result.message);
+        }
+      }
       setTimeout(() => setFeedbackMessage(null), 4000);
     } catch (err: any) {
-      setFeedbackMessage('Paylaşım başlatılamadı: ' + (err?.message || 'Sorun oluştu'));
-      setTimeout(() => setFeedbackMessage(null), 4000);
+      if (err?.name !== 'AbortError') {
+        setFeedbackMessage('Paylaşım tamamlanamadı.');
+        setTimeout(() => setFeedbackMessage(null), 3500);
+      }
     } finally {
       setIsDownloading(false);
     }
-  }, [imageUri, title]);
+  }, [imageUri, title, currentPrompt]);
 
+  // Share directly to Instagram or WhatsApp
+  const handleShareToApp = useCallback(async (app: 'instagram' | 'whatsapp') => {
+    let uriToShare = imageUri;
+    if (!uriToShare) {
+      const sampleAsset = getCategorySampleAsset(title);
+      const assetUri = resolveAssetUri(sampleAsset);
+      if (assetUri) {
+        uriToShare = assetUri;
+        setImageUri(assetUri);
+        setIsSamplePreview(true);
+      }
+    }
+    if (!uriToShare) {
+      setFeedbackMessage('Paylaşılacak bir görsel bulunamadı.');
+      setTimeout(() => setFeedbackMessage(null), 3500);
+      return;
+    }
+    const message = `Lumière Sucrée ile tasarladığım ${title}! ${currentPrompt.slice(0, 120)}`;
+    try {
+      if (app === 'whatsapp') {
+        const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
+        await Linking.openURL(url);
+      } else {
+        const url = `instagram://app`;
+        await Linking.openURL(url);
+      }
+    } catch (err) {
+      setFeedbackMessage(`${app === 'whatsapp' ? 'WhatsApp' : 'Instagram'} paylaşımı açılamadı.`);
+      setTimeout(() => setFeedbackMessage(null), 3000);
+    }
+  }, [imageUri, title, currentPrompt]);
+
+  
+
+  
+
+  const handleToggleSave = useCallback(async () => {
+    if (savedCakeId) {
+      toggleFavorite(savedCakeId);
+      const nextFav = !isFavorite;
+      setIsFavorite(nextFav);
+      setFeedbackMessage(nextFav ? 'Tasarım favorilere eklendi! ❤️' : 'Favorilerden çıkarıldı.');
+      setTimeout(() => setFeedbackMessage(null), 3000);
+      if (nextFav) {
+        registerPositiveAction().then((shouldPrompt) => {
+          if (shouldPrompt) {
+            setTimeout(() => {
+              setShowReviewModal(true);
+            }, 800);
+          }
+        });
+      }
+    } else if (imageUri) {
+      try {
+        const saved = await saveCake({
+          title,
+          prompt: currentPrompt,
+          imageUri,
+          kind,
+          recipe: recipeText || details?.recipe,
+          details: {
+            ...details,
+            referenceImageUri,
+            referenceImageBase64,
+            recipe: recipeText || details?.recipe,
+          },
+          isFavorite: true,
+        });
+        setSavedCakeId(saved.id);
+        setIsFavorite(true);
+        setFeedbackMessage('Tasarım koleksiyonunuza kaydedildi! ✨');
+        setTimeout(() => setFeedbackMessage(null), 3000);
+      } catch (err) {
+        console.warn('Kaydetme hatası:', err);
+      }
+    }
+  }, [savedCakeId, isFavorite, toggleFavorite, imageUri, title, currentPrompt, kind, details, referenceImageUri, referenceImageBase64, recipeText, saveCake]);
+
+  // fetchImage changes identity whenever credits change, so without this guard
+  // every deduction would immediately trigger (and bill) another generation.
+  const hasStartedRef = useRef(false);
   useEffect(() => {
+    if (hasStartedRef.current) return;
+    hasStartedRef.current = true;
     fetchImage();
-  }, [fetchImage]);
+    if (kind === 'diy' && !details?.recipe) {
+      fetchRecipe();
+    }
+  }, [fetchImage, fetchRecipe, kind, details?.recipe]);
 
   return (
     <View style={styles.root}>
@@ -301,64 +506,7 @@ export default function CakeResultScreen({
           {title}
         </Text>
 
-        <View style={styles.headerRight}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Görseli İndir"
-            onPress={handleDownload}
-            disabled={isDownloading}
-            hitSlop={8}
-            style={[styles.headerDownloadBtn, isDownloading && styles.headerDownloadBtnDisabled]}
-          >
-            {isDownloading ? (
-              <ActivityIndicator size="small" color={home.ink} />
-            ) : (
-              <DownloadIcon size={18} color={home.ink} />
-            )}
-          </Pressable>
-
-          {imageUri && savedCakeId && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Favorilere Ekle"
-              onPress={() => {
-                toggleFavorite(savedCakeId);
-                const nextFav = !isFavorite;
-                setIsFavorite(nextFav);
-                if (nextFav) {
-                  registerPositiveAction().then((shouldPrompt) => {
-                    if (shouldPrompt) {
-                      setTimeout(() => {
-                        setShowReviewModal(true);
-                      }, 800);
-                    }
-                  });
-                }
-              }}
-              hitSlop={8}
-              style={[
-                styles.headerFavoriteBtn,
-                isFavorite && styles.headerFavoriteBtnActive,
-              ]}
-            >
-              <HeartIcon
-                size={18}
-                color={isFavorite ? '#E53935' : home.ink}
-                filled={isFavorite}
-              />
-            </Pressable>
-          )}
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Kredi Bakiyesi"
-            onPress={openPurchaseModal}
-            style={styles.headerCreditBadge}
-          >
-            <CoinsIcon size={16} color={home.accentGold} />
-            <Text style={styles.headerCreditText}>{credits}</Text>
-          </Pressable>
-        </View>
+        <View style={styles.headerSpacer} />
       </View>
 
       <ScrollView
@@ -372,36 +520,101 @@ export default function CakeResultScreen({
             <GeneratingLoader>
               <View style={styles.costBadge}>
                 <CoinsIcon size={14} color={home.accentGold} />
-                <Text style={styles.costBadgeText}>{CREDITS_PER_GENERATION} Kredi Kullanılıyor</Text>
+                <Text style={styles.costBadgeText}>{cost} Kredi Kullanılıyor</Text>
               </View>
             </GeneratingLoader>
           ) : imageUri ? (
             <View style={styles.imageContainer}>
-              <Reveal key={imageUri} style={styles.generatedImage}>
-                <CakeImage
-                  source={{ uri: imageUri }}
-                  style={styles.generatedImage}
-                  contentFit="cover"
-                  priority="high"
-                  showShimmer
-                />
-              </Reveal>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Görseli İndir"
-                onPress={handleDownload}
-                disabled={isDownloading}
-                style={styles.floatingImageDownloadBtn}
+                accessibilityLabel="Fotoğrafı Büyüt"
+                onPress={() => setIsZoomModalOpen(true)}
+                style={styles.generatedImagePressable}
               >
-                {isDownloading ? (
-                  <ActivityIndicator size="small" color="#FFFDF9" />
-                ) : (
-                  <>
-                    <DownloadIcon size={14} color="#FFFDF9" />
-                    <Text style={styles.floatingImageDownloadText}>İndir</Text>
-                  </>
-                )}
+                <Reveal key={imageUri} style={styles.generatedImage}>
+                  <CakeImage
+                    source={{ uri: imageUri }}
+                    style={styles.generatedImage}
+                    contentFit="cover"
+                    priority="high"
+                    showShimmer
+                  />
+                </Reveal>
               </Pressable>
+              <View style={styles.floatingActionRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Görseli İndir"
+                  onPress={handleDownload}
+                  disabled={isDownloading}
+                  hitSlop={6}
+                  style={styles.floatingActionButton}
+                >
+                  {isDownloading ? (
+                    <ActivityIndicator size="small" color="#FFFDF9" />
+                  ) : (
+                    <>
+                      <DownloadIcon size={13} color="#FFFDF9" />
+                      <Text style={styles.floatingActionText}>İndir</Text>
+                    </>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Görseli Paylaş"
+                  onPress={handleShare}
+                  disabled={isDownloading}
+                  hitSlop={6}
+                  style={styles.floatingActionButton}
+                >
+                  <ShareIcon size={13} color="#FFFDF9" />
+                  <Text style={styles.floatingActionText}>Paylaş</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Instagram Paylaş"
+                  onPress={() => handleShareToApp('instagram')}
+                  disabled={isDownloading}
+                  hitSlop={6}
+                  style={styles.floatingActionButton}
+                >
+                  <ShareIcon size={13} color="#FFFDF9" />
+                  <Text style={styles.floatingActionText}>IG</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="WhatsApp Paylaş"
+                  onPress={() => handleShareToApp('whatsapp')}
+                  disabled={isDownloading}
+                  hitSlop={6}
+                  style={styles.floatingActionButton}
+                >
+                  <ShareIcon size={13} color="#FFFDF9" />
+                  <Text style={styles.floatingActionText}>WA</Text>
+                </Pressable>
+
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={isFavorite ? 'Kaydedildi' : 'Kaydet'}
+                  onPress={handleToggleSave}
+                  hitSlop={6}
+                  style={[
+                    styles.floatingActionButton,
+                    isFavorite && styles.floatingActionButtonActive,
+                  ]}
+                >
+                  <HeartIcon
+                    size={13}
+                    color={isFavorite ? '#E53935' : '#FFFDF9'}
+                    filled={isFavorite}
+                  />
+                  <Text style={styles.floatingActionText}>
+                    {isFavorite ? 'Kaydedildi' : 'Kaydet'}
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           ) : errorMessage === 'INSUFFICIENT_CREDITS' ? (
             <View style={styles.stateContainer}>
@@ -410,7 +623,7 @@ export default function CakeResultScreen({
               </View>
               <Text style={styles.frameTitle}>Yetersiz Kredi</Text>
               <Text style={styles.frameSubtitle}>
-                Pasta fotoğrafı oluşturmak için {CREDITS_PER_GENERATION} kredi gereklidir.{'\n'}
+                Pasta fotoğrafı oluşturmak için {cost} kredi gereklidir.{'\n'}
                 Mevcut bakiyen: <Text style={styles.boldText}>{credits} Kredi</Text>.
               </Text>
               <Pressable
@@ -453,7 +666,7 @@ export default function CakeResultScreen({
                 onPress={() => fetchImage()}
                 style={styles.retryButton}
               >
-                <Text style={styles.retryButtonLabel}>Tekrar Dene ({CREDITS_PER_GENERATION} Kredi)</Text>
+                <Text style={styles.retryButtonLabel}>Tekrar Dene ({cost} Kredi)</Text>
               </Pressable>
             </View>
           )}
@@ -462,26 +675,6 @@ export default function CakeResultScreen({
         {/* Kredi Bilgisi & Butonlar */}
         {!isLoading && (
           <>
-            {imageUri && (
-              <>
-                <View style={styles.savedBanner}>
-                  <BookmarkIcon size={16} color={home.accentGold} />
-                  <Text style={styles.savedBannerText}>
-                    Bu tasarım <Text style={styles.boldText}>Koleksiyonum</Text> sayfasına otomatik olarak kaydedildi.
-                  </Text>
-                </View>
-
-                <View style={styles.creditInfoPill}>
-                  <CoinsIcon size={15} color={home.accentGold} />
-                  <Text style={styles.creditInfoText}>
-                    {isSamplePreview
-                      ? 'Örnek görsel • Kredi kullanılmadı • Bakiyen: '
-                      : `${CREDITS_PER_GENERATION} Kredi kullanıldı • Kalan bakiyen: `}
-                    <Text style={styles.boldText}>{credits} Kredi</Text>
-                  </Text>
-                </View>
-              </>
-            )}
 
             {referenceImageUri && (
               <View style={styles.referenceCard}>
@@ -504,53 +697,25 @@ export default function CakeResultScreen({
               </View>
             )}
 
-            <Text style={styles.sectionLabel}>OLUŞTURULAN TARİF</Text>
-            <View style={styles.promptCard}>
-              <Text style={styles.promptText} selectable>
-                {currentPrompt}
-              </Text>
-            </View>
+            {kind === 'diy' ? (
+              <DiyRecipeCard
+                recipe={recipeText}
+                isLoading={isRecipeLoading}
+                error={recipeError}
+                onRetry={() => fetchRecipe()}
+                cakeTitle={title}
+              />
+            ) : (
+              <>
+                <Text style={styles.sectionLabel}>OLUŞTURULAN TARİF</Text>
+                <View style={styles.promptCard}>
+                  <Text style={styles.promptText} selectable>
+                    {currentPrompt}
+                  </Text>
+                </View>
+              </>
+            )}
 
-            {/* Görsel İndirme & Paylaşma Aksiyon Grubu */}
-            <View style={styles.downloadActionRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Görseli İndir"
-                onPress={handleDownload}
-                disabled={isDownloading}
-                android_ripple={{ color: 'rgba(255, 255, 255, 0.25)' }}
-                style={({ pressed }) => [
-                  styles.downloadPrimaryBtn,
-                  pressed && styles.downloadPrimaryBtnPressed,
-                  isDownloading && styles.downloadPrimaryBtnDisabled,
-                ]}
-              >
-                <ShineSweep initialDelay={1600} interval={3800} />
-                {isDownloading ? (
-                  <ActivityIndicator size="small" color="#FFFDF9" />
-                ) : (
-                  <>
-                    <DownloadIcon size={18} color="#FFFDF9" />
-                    <Text style={styles.downloadPrimaryBtnText}>Görseli İndir</Text>
-                  </>
-                )}
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Paylaş"
-                onPress={handleShare}
-                disabled={isDownloading}
-                android_ripple={{ color: home.divider }}
-                style={({ pressed }) => [
-                  styles.shareSecondaryBtn,
-                  pressed && styles.shareSecondaryBtnPressed,
-                ]}
-              >
-                <ShareIcon size={18} color={home.ink} />
-                <Text style={styles.shareSecondaryBtnText}>Paylaş</Text>
-              </Pressable>
-            </View>
 
             {feedbackMessage && (
               <View style={styles.feedbackToast}>
@@ -567,7 +732,7 @@ export default function CakeResultScreen({
                 android_ripple={{ color: home.divider }}
                 style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}
               >
-                <Text style={styles.actionButtonLabel}>Farklı Bir Görsel Üret ({CREDITS_PER_GENERATION} Kredi)</Text>
+                <Text style={styles.actionButtonLabel}>Farklı Bir Görsel Üret ({cost} Kredi)</Text>
               </Pressable>
             )}
 
@@ -627,7 +792,7 @@ export default function CakeResultScreen({
                 >
                   <SparkleIcon size={16} color="#FFFDF9" />
                   <Text style={styles.applyEditButtonLabel}>
-                    Düzenlemeleri Uygula ({CREDITS_PER_GENERATION} Kredi)
+                    Düzenlemeleri Uygula ({cost} Kredi)
                   </Text>
                 </Pressable>
 
@@ -652,6 +817,56 @@ export default function CakeResultScreen({
         cakeTitle={title}
         onClose={() => setShowReviewModal(false)}
       />
+
+      {/* Pastacı Sipariş Fişi & AI Tarif Rehberi Modalı */}
+      <PastryOrderSheetModal
+        visible={isOrderSheetOpen}
+        onClose={() => setIsOrderSheetOpen(false)}
+        title={title}
+        kind={kind}
+        prompt={currentPrompt}
+        imageUri={imageUri}
+        details={details}
+      />
+
+      {/* Tam Ekran Büyütülmüş Fotoğraf Modalı (Lightbox) */}
+      <Modal
+        visible={isZoomModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsZoomModalOpen(false)}
+      >
+        <View style={styles.lightboxBackdrop}>
+          <StatusBar style="light" />
+
+          {/* Sol Üst Çarpı Kapatma Butonu */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Kapat"
+            onPress={() => setIsZoomModalOpen(false)}
+            hitSlop={14}
+            style={[styles.lightboxCloseBtn, { top: Math.max(insets.top, 16) + 6 }]}
+          >
+            <CloseIcon size={20} color="#FFFFFF" strokeWidth={2.2} />
+          </Pressable>
+
+          {/* Büyütülmüş Görsel */}
+          <Pressable
+            style={styles.lightboxImageWrapper}
+            onPress={() => setIsZoomModalOpen(false)}
+          >
+            {imageUri && (
+              <CakeImage
+                source={{ uri: imageUri }}
+                style={styles.lightboxImage}
+                contentFit="contain"
+                priority="high"
+                showShimmer={false}
+              />
+            )}
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -687,21 +902,8 @@ const styles = StyleSheet.create({
     fontSize: 21,
     color: home.ink,
   },
-  headerCreditBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: home.card,
-    borderWidth: 1,
-    borderColor: home.cardBorder,
-    paddingHorizontal: 12,
-    height: 38,
-    borderRadius: 19,
-    gap: 6,
-  },
-  headerCreditText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: home.ink,
+  headerSpacer: {
+    width: 40,
   },
   scroll: {
     width: '100%',
@@ -1046,16 +1248,61 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative',
   },
-  floatingImageDownloadBtn: {
+  generatedImagePressable: {
+    width: '100%',
+    height: '100%',
+  },
+  lightboxBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(10, 8, 6, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lightboxCloseBtn: {
+    position: 'absolute',
+    left: 18,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 6,
+  },
+  lightboxImageWrapper: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 36,
+  },
+  lightboxImage: {
+    width: '100%',
+    height: '100%',
+  },
+  floatingActionRow: {
     position: 'absolute',
     bottom: 12,
     right: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 7,
+  },
+  floatingActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: 'rgba(38, 24, 14, 0.82)',
     paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(243, 217, 166, 0.4)',
@@ -1065,9 +1312,13 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  floatingImageDownloadText: {
+  floatingActionButtonActive: {
+    backgroundColor: 'rgba(56, 32, 18, 0.92)',
+    borderColor: 'rgba(243, 217, 166, 0.75)',
+  },
+  floatingActionText: {
     color: '#FFFDF9',
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.2,
   },
@@ -1169,6 +1420,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: home.ink,
+  },
+  orderSpecButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 14,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#FFFDF9',
+    borderWidth: 1.5,
+    borderColor: 'rgba(201, 154, 75, 0.45)',
+    shadowColor: '#8A6A3A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  orderSpecButtonPressed: {
+    opacity: 0.88,
+  },
+  orderSpecIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: home.ctaFrom,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  orderSpecTextGroup: {
+    flex: 1,
+    gap: 2,
+  },
+  orderSpecTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: home.ink,
+  },
+  orderSpecSub: {
+    fontSize: 11.5,
+    color: home.muted,
+    lineHeight: 15,
   },
 });
 

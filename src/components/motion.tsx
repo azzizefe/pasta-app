@@ -269,7 +269,12 @@ export function useCountUp(target: number, duration = 900) {
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-    return () => value.removeListener(id);
+    // A balance must never be left showing a wrong number if frames stall (e.g. a background tab).
+    const settle = setTimeout(() => setDisplay(target), duration + 150);
+    return () => {
+      clearTimeout(settle);
+      value.removeListener(id);
+    };
   }, [target, duration, value]);
 
   return display;

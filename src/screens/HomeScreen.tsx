@@ -1,20 +1,31 @@
-import React, { useCallback, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import TabBar, { type TabKey } from '../components/TabBar';
+import CakeCarousel3D from '../components/CakeCarousel3D';
 import CakeFeatureCard from '../components/CakeFeatureCard';
 import ProfilePane from '../components/ProfilePane';
 import SavedPane from '../components/SavedPane';
 import UpcomingBanner from '../components/UpcomingBanner';
 import OccasionsModal from '../components/OccasionsModal';
-import { CalendarIcon, CoinsIcon, SparkleIcon } from '../components/Icons';
+import { CalendarIcon, CoinsIcon } from '../components/Icons';
 import { FadeInUp, PressableScale } from '../components/motion';
 import { useCredits } from '../context/CreditsContext';
 import { useOccasions } from '../context/OccasionsContext';
 import { type CakeKind } from './CakeBuilderScreen';
+import { type CakeDetails } from '../types/savedCake';
 import { fonts, home } from '../theme/theme';
 
 /** Warm wash behind the greeting, fading back into plain ivory. */
@@ -33,31 +44,56 @@ const CUSTOM_CAKE = require('../../assets/custom-cake.png');
 const MIXER = require('../../assets/mixer.png');
 
 // Intrinsic height / width of each cropped asset.
-const WEDDING_ASPECT = 303 / 217;
-const BIRTHDAY_ASPECT = 303 / 368;
-const ENGAGEMENT_ASPECT = 291 / 231;
+const WEDDING_ASPECT = 420 / 301;
+const BIRTHDAY_ASPECT = 301 / 337;
+const ENGAGEMENT_ASPECT = 436 / 340;
 const CUSTOM_ASPECT = 230 / 217;
 const MIXER_ASPECT = 281 / 261;
 
 type Props = {
   userName?: string;
   userEmail?: string;
+  authProvider?: 'apple' | 'google' | null;
   onSignOut: () => void;
-  onOpenBuilder: (kind: CakeKind) => void;
+  onDeleteAccount: () => void;
+  onOpenBuilder: (kind: CakeKind, details?: CakeDetails) => void;
 };
 
 export default function HomeScreen({
   userName,
   userEmail,
+  authProvider,
   onSignOut,
+  onDeleteAccount,
   onOpenBuilder,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const [tab, setTab] = useState<TabKey>('home');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [measuredPaneHeight, setMeasuredPaneHeight] = useState<number | null>(null);
+  const [customName, setCustomName] = useState<string | null>(null);
   const { upcomingOccasions } = useOccasions();
   const { credits, openPurchaseModal } = useCredits();
-  const firstName = (userName || USER_NAME).split(' ')[0];
+
+  useEffect(() => {
+    AsyncStorage.getItem('@lumiere_user_custom_name')
+      .then((val) => {
+        if (val) setCustomName(val);
+      })
+      .catch(() => {});
+  }, []);
+
+  const effectiveName = customName || userName || USER_NAME;
+  const firstName = effectiveName.split(' ')[0];
+
+  // Dynamic card height so exactly 3 cards fit on screen without the 4th peeking/overflowing.
+  // When scrolled down, subsequent cards appear cleanly.
+  const availablePaneHeight =
+    measuredPaneHeight ??
+    Math.max(450, windowHeight - (insets.top + 60) - (insets.bottom + 55));
+  const cardGap = 14;
+  const cardHeight = Math.max(160, Math.floor((availablePaneHeight - 48) / 3));
 
   const handleWeddingCake = useCallback(() => onOpenBuilder('wedding'), [onOpenBuilder]);
   const handleBirthdayCake = useCallback(() => onOpenBuilder('birthday'), [onOpenBuilder]);
@@ -87,123 +123,71 @@ export default function HomeScreen({
       />
 
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <View style={styles.headerSidePlaceholder} />
-        <Text style={styles.brand} numberOfLines={1}>
-          Lumière Sucrée
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Özel Gün Takvimi ve Hatırlatıcılar"
-          onPress={() => setIsCalendarOpen(true)}
-          style={styles.headerButton}
-          hitSlop={8}
-        >
-          <CalendarIcon size={20} color={home.ink} strokeWidth={1.8} />
-          {upcomingOccasions.length > 0 && (
-            <View style={styles.headerBadge}>
-              <Text style={styles.headerBadgeText}>{upcomingOccasions.length}</Text>
-            </View>
-          )}
-        </Pressable>
+        {tab === 'home' ? (
+          <Text style={styles.brand} numberOfLines={1}>
+            Merhaba {firstName},
+          </Text>
+        ) : (
+          <View />
+        )}
+        {tab === 'home' && (
+          <View style={styles.headerActions}>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={`Kredi bakiyesi ${credits}`}
+              onPress={openPurchaseModal}
+              contentStyle={styles.creditChip}
+            >
+              <CoinsIcon size={16} color={home.gold} />
+              <Text style={styles.creditChipText}>{credits}</Text>
+            </PressableScale>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Özel Gün Takvimi ve Hatırlatıcılar"
+              onPress={() => setIsCalendarOpen(true)}
+              style={styles.headerButton}
+              hitSlop={8}
+            >
+              <CalendarIcon size={19} color={home.ink} strokeWidth={1.8} />
+              {upcomingOccasions.length > 0 && (
+                <View style={styles.headerBadge}>
+                  <Text style={styles.headerBadgeText}>{upcomingOccasions.length}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+        )}
       </View>
 
-      {/* Panes stay mounted and are hidden instead of unmounted, so switching
-          tabs never tears down and rebuilds the cards. */}
-      <View style={[styles.pane, tab !== 'home' && styles.paneHidden]}>
+      <View
+        style={[styles.pane, tab !== 'home' && styles.paneHidden]}
+        onLayout={(e) => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 300 && h !== measuredPaneHeight) {
+            setMeasuredPaneHeight(h);
+          }
+        }}
+      >
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[styles.scroll, { paddingTop: 8, paddingBottom: 32 }]}
           showsVerticalScrollIndicator={false}
         >
-          <FadeInUp style={styles.hero} distance={10}>
-            <View style={styles.heroTopRow}>
-              <View style={styles.eyebrow}>
-                <SparkleIcon size={12} color={home.gold} />
-                <Text style={styles.eyebrowText}>YAPAY ZEKA PASTA STÜDYOSU</Text>
-              </View>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={`Kredi bakiyesi ${credits}`}
-                onPress={openPurchaseModal}
-                contentStyle={styles.creditChip}
-              >
-                <CoinsIcon size={15} color={home.gold} />
-                <Text style={styles.creditChipText}>{credits}</Text>
-              </PressableScale>
-            </View>
-            <Text style={styles.heroTitle}>
-              Merhaba {firstName},{'\n'}
-              <Text style={styles.heroTitleAccent}>bugün ne tasarlıyoruz?</Text>
-            </Text>
-            <Text style={styles.heroSub}>
-              Bir kategori seç, hayalindeki pastayı birkaç adımda görselleştir.
-            </Text>
-          </FadeInUp>
 
           {upcomingOccasions.length > 0 && (
-            <FadeInUp delay={80}>
-              <UpcomingBanner
-                occasion={upcomingOccasions[0]}
-                onOpenCalendar={() => setIsCalendarOpen(true)}
-                onOpenBuilder={onOpenBuilder}
-              />
-            </FadeInUp>
+            <View style={styles.bannerWrap}>
+              <FadeInUp delay={80}>
+                <UpcomingBanner
+                  occasion={upcomingOccasions[0]}
+                  onOpenCalendar={() => setIsCalendarOpen(true)}
+                  onOpenBuilder={onOpenBuilder}
+                />
+              </FadeInUp>
+            </View>
           )}
 
-          <FadeInUp delay={140}>
-            <CakeFeatureCard
-              image={WEDDING_CAKE}
-              aspect={WEDDING_ASPECT}
-              label={'Düğün Pastası\nOluştur'}
-              accessibilityLabel="Düğün Pastası Oluştur"
-              imageAlt="Three-tier wedding cake covered in sugar flowers"
-              onPress={handleWeddingCake}
-            />
-          </FadeInUp>
-
-          <FadeInUp delay={220} style={styles.nextCard}>
-            <CakeFeatureCard
-              image={BIRTHDAY_CAKE}
-              aspect={BIRTHDAY_ASPECT}
-              label={'Doğum Günü\nPastası Oluştur'}
-              accessibilityLabel="Doğum Günü Pastası Oluştur"
-              imageAlt="Lace-iced cake with butterflies and a pink ribbon bow"
-              onPress={handleBirthdayCake}
-            />
-          </FadeInUp>
-
-          <FadeInUp delay={300} style={styles.nextCard}>
-            <CakeFeatureCard
-              image={ENGAGEMENT_CAKE}
-              aspect={ENGAGEMENT_ASPECT}
-              label={'Nişan Pastası\nOluştur'}
-              accessibilityLabel="Nişan Pastası Oluştur"
-              imageAlt="Three-tier engagement cake with purple and white sugar flowers"
-              onPress={handleEngagementCake}
-            />
-          </FadeInUp>
-
-          <FadeInUp delay={380} style={styles.nextCard}>
-            <CakeFeatureCard
-              image={CUSTOM_CAKE}
-              aspect={CUSTOM_ASPECT}
-              label={'Özel Pasta\nOluştur'}
-              accessibilityLabel="Özel Pasta Oluştur"
-              imageAlt="White cake with gold accents topped with a gold crown"
-              onPress={handleCustomCake}
-            />
-          </FadeInUp>
-
-          <FadeInUp delay={460} style={styles.nextCard}>
-            <CakeFeatureCard
-              image={MIXER}
-              aspect={MIXER_ASPECT}
-              maxWidth={160}
-              label={'Kendi Pastanı\nOluştur'}
-              accessibilityLabel="Kendi Pastanı Oluştur"
-              imageAlt="Stand mixer whipping cake batter in a metal bowl"
-              onPress={handleDiyCake}
-            />
+          <FadeInUp delay={120}>
+            <CakeCarousel3D onSelectCake={onOpenBuilder} />
           </FadeInUp>
         </ScrollView>
       </View>
@@ -214,13 +198,15 @@ export default function HomeScreen({
 
       <View style={[styles.pane, tab !== 'profile' && styles.paneHidden]}>
         <ProfilePane
-          name={userName || USER_NAME}
+          name={effectiveName}
           email={userEmail || USER_EMAIL}
+          authProvider={authProvider}
           onPrivacyPolicy={handleOpenPrivacy}
           onTermsOfUse={handleOpenTerms}
           onSignOut={onSignOut}
-          onDeleteAccount={onSignOut}
+          onDeleteAccount={onDeleteAccount}
           onOpenCalendar={() => setIsCalendarOpen(true)}
+          onUpdateName={setCustomName}
         />
       </View>
 
@@ -245,12 +231,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+    minHeight: 38,
     paddingHorizontal: 20,
-    paddingBottom: 14,
+    paddingBottom: 12,
   },
-  headerSidePlaceholder: {
-    width: 38,
-    height: 38,
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerButton: {
     width: 38,
@@ -288,9 +279,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   brand: {
-    textAlign: 'center',
+    flexShrink: 1,
     fontFamily: fonts.display,
-    fontSize: 20,
+    fontSize: 22,
     letterSpacing: 0.2,
     color: home.ink,
   },
@@ -303,39 +294,24 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: CONTENT_MAX_WIDTH,
     alignSelf: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     paddingTop: 8,
     paddingBottom: 28,
   },
+  bannerWrap: {
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
   nextCard: {
     marginTop: 16,
-  },
-  hero: {
-    marginBottom: 20,
-  },
-  heroTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  eyebrow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  eyebrowText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.6,
-    color: home.gold,
   },
   creditChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 16,
+    height: 38,
+    paddingHorizontal: 13,
+    borderRadius: 19,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: home.cardBorderRich,
@@ -349,23 +325,6 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '700',
     color: home.ink,
-  },
-  heroTitle: {
-    marginTop: 14,
-    fontFamily: fonts.display,
-    fontSize: 30,
-    lineHeight: 38,
-    letterSpacing: 0.2,
-    color: home.ink,
-  },
-  heroTitleAccent: {
-    color: home.gold,
-  },
-  heroSub: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 20,
-    color: home.body,
   },
   pane: {
     flex: 1,

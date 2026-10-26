@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AuthButton from '../components/AuthButton';
 import { AppleIcon, GoogleIcon } from '../components/BrandIcons';
 import { signInWithApple, type AppleUser } from '../services/appleAuthService';
+import { signInWithGoogle } from '../services/googleAuthService';
 import { colors, fonts, spacing } from '../theme/theme';
 
 /** Wall -> floor -> light falloff, mirroring a studio photo backdrop. */
@@ -65,9 +66,11 @@ type Props = {
 export default function LoginScreen({ onSignIn }: Props) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authenticatingProvider, setAuthenticatingProvider] = useState<Provider | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [heroBox, setHeroBox] = useState<{ y: number; height: number } | null>(null);
+
+  const isAuthenticating = authenticatingProvider !== null;
 
   const handleHeroLayout = useCallback((e: LayoutChangeEvent) => {
     const { y, height: h } = e.nativeEvent.layout;
@@ -85,7 +88,7 @@ export default function LoginScreen({ onSignIn }: Props) {
 
   // Sign in with Apple (App Store Kılavuz 4.8 uyumlu)
   const handleApple = useCallback(async () => {
-    setIsAuthenticating(true);
+    setAuthenticatingProvider('apple');
     setAuthError(null);
     try {
       const result = await signInWithApple();
@@ -97,18 +100,26 @@ export default function LoginScreen({ onSignIn }: Props) {
     } catch (err: any) {
       setAuthError(err?.message || 'Apple ile giriş sırasında bir hata oluştu.');
     } finally {
-      setIsAuthenticating(false);
+      setAuthenticatingProvider(null);
     }
   }, [onSignIn]);
 
-  const handleGoogle = useCallback(() => {
-    onSignIn('google', {
-      id: 'google_user_demo',
-      email: 'amelie@lumieresucree.app',
-      name: 'Amélie Poulain',
-      identityToken: null,
-      authorizationCode: null,
-    });
+  // Sign in with Google (Supabase OAuth & Google Cloud Console)
+  const handleGoogle = useCallback(async () => {
+    setAuthenticatingProvider('google');
+    setAuthError(null);
+    try {
+      const result = await signInWithGoogle();
+      if (result.success && result.user) {
+        onSignIn('google', result.user);
+      } else if (result.error) {
+        setAuthError(result.error);
+      }
+    } catch (err: any) {
+      setAuthError(err?.message || 'Google ile giriş sırasında bir hata oluştu.');
+    } finally {
+      setAuthenticatingProvider(null);
+    }
   }, [onSignIn]);
 
   const handleOpenTerms = () => {
@@ -158,9 +169,9 @@ export default function LoginScreen({ onSignIn }: Props) {
 
           <View style={styles.actions}>
             <AuthButton
-              label={isAuthenticating ? 'Giriş Yapılıyor...' : 'Sign in with Apple'}
+              label={authenticatingProvider === 'apple' ? 'Giriş Yapılıyor...' : 'Sign in with Apple'}
               icon={
-                isAuthenticating ? (
+                authenticatingProvider === 'apple' ? (
                   <ActivityIndicator size="small" color="#FFFDF9" />
                 ) : (
                   <AppleIcon size={19} />
@@ -170,8 +181,14 @@ export default function LoginScreen({ onSignIn }: Props) {
               disabled={isAuthenticating}
             />
             <AuthButton
-              label="Sign in with Google"
-              icon={<GoogleIcon size={20} />}
+              label={authenticatingProvider === 'google' ? 'Giriş Yapılıyor...' : 'Sign in with Google'}
+              icon={
+                authenticatingProvider === 'google' ? (
+                  <ActivityIndicator size="small" color="#555" />
+                ) : (
+                  <GoogleIcon size={20} />
+                )
+              }
               onPress={handleGoogle}
               disabled={isAuthenticating}
               style={styles.stackedButton}

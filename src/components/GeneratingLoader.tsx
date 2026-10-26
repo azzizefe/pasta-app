@@ -2,16 +2,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { SparkleIcon } from './Icons';
+import { ChefHatIcon, SparkleIcon } from './Icons';
 import { NATIVE } from './motion';
 import { fonts, home } from '../theme/theme';
 
 const STEPS = [
-  'Kompozisyon kuruluyor',
-  'Katlar ve form şekilleniyor',
-  'Işık ve gölgeler ayarlanıyor',
-  'Şeker detaylar işleniyor',
-  'Son rötuşlar yapılıyor',
+  'Organik yumurta ve vanilya köpürtülüyor',
+  'Pandispanya 175°C taş fırında kabarıyor',
+  'İpek pastacı kreması ve meyveler katmanlanıyor',
+  'İsviçre merengi ile pürüzsüz sıvama yapılıyor',
+  'Şeker çiçekler ve altın dokunuşlar işleniyor',
 ];
 
 const STEP_MS = 2600;
@@ -88,7 +88,7 @@ export default function GeneratingLoader({ children }: Props) {
         </LinearGradient>
       </View>
 
-      <Text style={styles.title}>Pastan hazırlanıyor</Text>
+      <Text style={styles.title}>Pastan fırında yükseliyor</Text>
       <Animated.Text style={[styles.step, { opacity: stepOpacity }]}>{STEPS[step]}…</Animated.Text>
 
       <View style={styles.track}>
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   title: {
-    marginTop: 18,
+    marginTop: 12,
     fontFamily: fonts.display,
     fontSize: 20,
     color: home.ink,

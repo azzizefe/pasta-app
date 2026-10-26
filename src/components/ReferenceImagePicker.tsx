@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { CameraIcon, CloseIcon, ImageIcon, SparkleIcon } from './Icons';
 import { fonts, home } from '../theme/theme';
 
@@ -35,7 +36,7 @@ export default function ReferenceImagePicker({
       setIsLoading(true);
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(
+        showAlert(
           'Galeri İzni Gerekli',
           'İlham fotoğrafı seçebilmek için fotoğraf galerisi erişimine izin vermelisiniz.',
         );
@@ -57,7 +58,7 @@ export default function ReferenceImagePicker({
         }
       }
     } catch (err: any) {
-      Alert.alert('Hata', err?.message || 'Fotoğraf seçilemedi.');
+      showAlert('Hata', err?.message || 'Fotoğraf seçilemedi.');
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +69,7 @@ export default function ReferenceImagePicker({
       setIsLoading(true);
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(
+        showAlert(
           'Kamera İzni Gerekli',
           'İlham fotoğrafı çekebilmek için kamera erişimine izin vermelisiniz.',
         );
@@ -89,22 +90,32 @@ export default function ReferenceImagePicker({
         }
       }
     } catch (err: any) {
-      Alert.alert('Hata', err?.message || 'Fotoğraf çekilemedi.');
+      showAlert('Hata', err?.message || 'Fotoğraf çekilemedi.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <View style={styles.card}>
+    <LinearGradient
+      colors={[home.cardGradFrom, home.cardGradTo]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.card}
+    >
       <View style={styles.headerRow}>
         <View style={styles.iconCircle}>
-          <SparkleIcon size={16} color={home.accentGold} />
+          <SparkleIcon size={18} color={home.accentGold} />
         </View>
         <View style={styles.headerTextCol}>
-          <Text style={styles.title}>İlham Fotoğrafı (Opsiyonel)</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>İlham Fotoğrafı</Text>
+            <View style={styles.optionalPill}>
+              <Text style={styles.optionalPillText}>İSTEĞE BAĞLI</Text>
+            </View>
+          </View>
           <Text style={styles.subtitle}>
-            Gelinlik kumaşı, parti teması veya davetiye yükleyin; AI renk ve desenleri pastanıza işlesin.
+            Bir fotoğraf yükle, yapay zekâ renklerini ve desenlerini pastana işlesin.
           </Text>
         </View>
       </View>
@@ -132,69 +143,89 @@ export default function ReferenceImagePicker({
 
           <View style={styles.previewInfo}>
             <View style={styles.analysisBadge}>
-              <SparkleIcon size={12} color={home.accentGold} />
-              <Text style={styles.analysisBadgeText}>AI Bu Görseli Analiz Edecek</Text>
+              <SparkleIcon size={12} color={home.gold} />
+              <Text style={styles.analysisBadgeText}>Yapay zekâ inceleyecek</Text>
             </View>
             <Text style={styles.previewHint}>
-              Renk paleti, doku ve çiçek motifleri pastanızın süslemesine aktarılacaktır.
+              Renk paleti, doku ve motifler pastanın süslemesine aktarılacak.
             </Text>
-
-            <View style={styles.actionRow}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={handlePickGallery}
-                style={styles.secondaryButton}
-              >
-                <Text style={styles.secondaryButtonText}>Fotoğrafı Değiştir</Text>
-              </Pressable>
-            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={handlePickGallery}
+              style={({ pressed }) => [styles.changeButton, pressed && styles.pressed]}
+            >
+              <ImageIcon size={15} color={home.ink} />
+              <Text style={styles.changeButtonText}>Fotoğrafı Değiştir</Text>
+            </Pressable>
           </View>
         </View>
-      ) : (
-        /* Boş Durum: Galeri veya Kamera Butonları */
-        <View style={styles.emptyContainer}>
-          {isLoading ? (
-            <View style={styles.loadingBox}>
-              <ActivityIndicator size="small" color={home.ink} />
-              <Text style={styles.loadingText}>Fotoğraf işleniyor...</Text>
-            </View>
-          ) : (
-            <View style={styles.buttonsRow}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Galeriden Fotoğraf Seç"
-                onPress={handlePickGallery}
-                style={({ pressed }) => [styles.pickerButton, pressed && styles.pickerButtonPressed]}
-              >
-                <ImageIcon size={18} color={home.ink} />
-                <Text style={styles.pickerButtonText}>Galeriden Seç</Text>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Kamera ile Çek"
-                onPress={handleTakePhoto}
-                style={({ pressed }) => [styles.pickerButton, pressed && styles.pickerButtonPressed]}
-              >
-                <CameraIcon size={18} color={home.ink} />
-                <Text style={styles.pickerButtonText}>Fotoğraf Çek</Text>
-              </Pressable>
-            </View>
-          )}
+      ) : isLoading ? (
+        <View style={styles.loadingBox}>
+          <ActivityIndicator size="small" color={home.ink} />
+          <Text style={styles.loadingText}>Fotoğraf işleniyor...</Text>
         </View>
+      ) : (
+        /* Boş Durum: Galeri veya Kamera */
+        <>
+          <View style={styles.buttonsRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Galeriden Fotoğraf Seç"
+              onPress={handlePickGallery}
+              style={({ pressed }) => [styles.buttonWrap, pressed && styles.pressed]}
+            >
+              <LinearGradient
+                colors={[home.ctaFrom, home.ctaTo]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.primaryButton}
+              >
+                <ImageIcon size={17} color={home.accentGold} />
+                <Text
+                  style={styles.primaryButtonText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                >
+                  Galeriden Seç
+                </Text>
+              </LinearGradient>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Kamera ile Çek"
+              onPress={handleTakePhoto}
+              style={({ pressed }) => [styles.buttonWrap, styles.secondaryButton, pressed && styles.pressed]}
+            >
+              <CameraIcon size={17} color={home.ink} />
+              <Text
+                style={styles.secondaryButtonText}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                Fotoğraf Çek
+              </Text>
+            </Pressable>
+          </View>
+        </>
       )}
-    </View>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FAF3E8',
-    borderRadius: 16,
+    borderRadius: 22,
     borderWidth: 1,
-    borderColor: '#EFE2CE',
+    borderColor: home.cardBorderRich,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 22,
+    shadowColor: '#8A6A3A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 3,
+    overflow: 'hidden',
   },
   headerRow: {
     flexDirection: 'row',
@@ -203,89 +234,115 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   iconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#EFE2CE',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: home.ctaFrom,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
   },
   headerTextCol: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
+  },
   title: {
-    fontFamily: fonts.displayMedium,
-    fontSize: 15,
+    fontFamily: fonts.display,
+    fontSize: 18,
     color: home.ink,
-    marginBottom: 3,
+  },
+  optionalPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: 'rgba(243, 217, 166, 0.55)',
+  },
+  optionalPillText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    color: '#6B4512',
   },
   subtitle: {
-    fontSize: 12,
-    color: home.muted,
-    lineHeight: 16,
-  },
-  emptyContainer: {
-    paddingTop: 4,
+    fontSize: 14,
+    lineHeight: 20,
+    color: home.body,
   },
   buttonsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
+    width: '100%',
   },
-  pickerButton: {
+  buttonWrap: {
+    flex: 1,
+    minWidth: 0,
+    height: 46,
+    borderRadius: 23,
+    overflow: 'hidden',
+  },
+  primaryButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  primaryButtonText: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    color: '#FFFDF9',
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
     backgroundColor: '#FFFFFF',
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E7DAC4',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1.5,
+    borderColor: home.cardBorderRich,
   },
-  pickerButtonPressed: {
-    backgroundColor: '#FDFBF7',
-    transform: [{ scale: 0.98 }],
-  },
-  pickerButtonText: {
-    fontSize: 13,
+  secondaryButtonText: {
+    fontSize: 13.5,
     fontWeight: '600',
     color: home.ink,
+  },
+  pressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
   },
   loadingBox: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 14,
+    paddingVertical: 16,
   },
   loadingText: {
-    fontSize: 13,
-    color: home.muted,
+    fontSize: 14,
+    fontWeight: '600',
+    color: home.body,
   },
   previewContainer: {
     flexDirection: 'row',
     gap: 14,
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
+    borderRadius: 18,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#EFE2CE',
+    borderColor: home.cardBorderRich,
   },
   previewImageWrapper: {
-    width: 86,
-    height: 86,
-    borderRadius: 10,
+    width: 104,
+    height: 104,
+    borderRadius: 14,
     overflow: 'hidden',
-    position: 'relative',
     backgroundColor: '#F0E5D5',
   },
   previewImage: {
@@ -294,12 +351,12 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(59, 36, 22, 0.75)',
+    top: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(59, 36, 22, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -311,34 +368,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#FDF6EA',
     alignSelf: 'flex-start',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(243, 217, 166, 0.45)',
   },
   analysisBadgeText: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    color: '#8A5A1C',
+    color: '#6B4512',
   },
   previewHint: {
-    fontSize: 11,
-    color: home.muted,
-    lineHeight: 15,
-    marginTop: 4,
-  },
-  actionRow: {
-    flexDirection: 'row',
     marginTop: 6,
+    fontSize: 13.5,
+    lineHeight: 19,
+    color: home.body,
   },
-  secondaryButton: {
-    paddingVertical: 4,
+  changeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    backgroundColor: home.card,
+    borderWidth: 1,
+    borderColor: home.cardBorderRich,
   },
-  secondaryButtonText: {
-    fontSize: 12,
-    color: home.gold,
-    fontWeight: '600',
-    textDecorationLine: 'underline',
+  changeButtonText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: home.ink,
   },
 });

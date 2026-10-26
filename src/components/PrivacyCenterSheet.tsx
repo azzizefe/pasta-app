@@ -1,5 +1,6 @@
 import React from 'react';
-import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import InfoSheet, { SheetRow, sheetStyles } from './InfoSheet';
@@ -56,11 +57,11 @@ type Props = {
 export default function PrivacyCenterSheet({ visible, onClose, onPrivacyPolicy, onTermsOfUse }: Props) {
   const handleNotificationSettings = () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Bildirim İzinleri', 'Bildirim izinlerini tarayıcının site ayarlarından yönetebilirsin.');
+      showAlert('Bildirim İzinleri', 'Bildirim izinlerini tarayıcının site ayarlarından yönetebilirsin.');
       return;
     }
     Linking.openSettings().catch(() => {
-      Alert.alert('Ayarlar Açılamadı', 'Bildirim izinlerini cihazının Ayarlar uygulamasından yönetebilirsin.');
+      showAlert('Ayarlar Açılamadı', 'Bildirim izinlerini cihazının Ayarlar uygulamasından yönetebilirsin.');
     });
   };
 
@@ -71,7 +72,7 @@ export default function PrivacyCenterSheet({ visible, onClose, onPrivacyPolicy, 
         'Merhaba,\n\nHesabıma ait kişisel verilerle ilgili talebim:\n(ör. verilerimin bir kopyası / verilerimin silinmesi)\n\n',
       ),
     ).catch(() => {
-      Alert.alert('E-posta Uygulaması Açılamadı', `Talebini ${SUPPORT_EMAIL} adresine iletebilirsin.`);
+      showAlert('E-posta Uygulaması Açılamadı', `Talebini ${SUPPORT_EMAIL} adresine iletebilirsin.`);
     });
   };
 

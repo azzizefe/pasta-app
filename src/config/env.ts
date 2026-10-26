@@ -8,7 +8,17 @@
 export const ENV = {
   GEMINI_API_KEY: process.env.EXPO_PUBLIC_GEMINI_API_KEY || '',
   GEMINI_IMAGE_MODEL:
-    process.env.EXPO_PUBLIC_GEMINI_IMAGE_MODEL || 'gemini-3-pro-image',
+    process.env.EXPO_PUBLIC_GEMINI_IMAGE_MODEL || 'gemini-3.1-flash-image',
+  /** Gemini 3.1 Flash Lite tarif modeli (Kendi Pastanı Oluştur için) */
+  GEMINI_RECIPE_MODEL:
+    process.env.EXPO_PUBLIC_GEMINI_RECIPE_MODEL || 'gemini-3.1-flash-lite',
+  /** Tarif üretimi için maksimum token sınırı (10.000 token'a kadar kapsamlı rehber) */
+  GEMINI_RECIPE_MAX_TOKENS: parseInt(
+    process.env.EXPO_PUBLIC_GEMINI_RECIPE_MAX_TOKENS || '10000',
+    10
+  ),
+  DEFAULT_IMAGE_QUALITY:
+    (process.env.EXPO_PUBLIC_AI_DEFAULT_QUALITY as 'standard' | '4k') || '4k',
   /** Güvenli Backend Proxy URL'i (Prodüksiyonda Gemini API anahtarını korumak için) */
   AI_BACKEND_URL: process.env.EXPO_PUBLIC_AI_BACKEND_URL || '',
   /** RevenueCat Apple App Store Public SDK Key (appl_...) */

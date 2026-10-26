@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "expo-web",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["scripts/start-web.js"],
+      "autoPort": true,
+      "port": 8081
+    }
+  ]
+}

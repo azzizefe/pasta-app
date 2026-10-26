@@ -12,7 +12,9 @@ export interface IAPPackage {
   id: IAPPackageId;
   credits: number;
   bonus?: number;
-  cakes: number;
+  /** Numeric price matching priceUSD (or the store's localized price), used for savings math. */
+  priceValue: number;
+  currencyCode: string;
   priceTRY: string;
   priceUSD: string;
   priceEUR: string;
@@ -45,7 +47,8 @@ export const IAP_PACKAGES: IAPPackage[] = [
   {
     id: 'lumiere_credits_single_15',
     credits: 15,
-    cakes: 1,
+    priceValue: 2.49,
+    currencyCode: 'USD',
     priceTRY: '₺87,99',
     priceUSD: '$2.49',
     priceEUR: '€2.49',
@@ -55,7 +58,8 @@ export const IAP_PACKAGES: IAPPackage[] = [
   {
     id: 'lumiere_credits_starter_200',
     credits: 200,
-    cakes: 13,
+    priceValue: 24.99,
+    currencyCode: 'USD',
     priceTRY: '₺874,99',
     priceUSD: '$24.99',
     priceEUR: '€24.99',
@@ -65,7 +69,8 @@ export const IAP_PACKAGES: IAPPackage[] = [
   {
     id: 'lumiere_credits_popular_1000',
     credits: 1000,
-    cakes: 66,
+    priceValue: 99.99,
+    currencyCode: 'USD',
     priceTRY: '₺3.499,99',
     priceUSD: '$99.99',
     priceEUR: '€99.99',

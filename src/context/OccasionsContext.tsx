@@ -105,7 +105,7 @@ export function OccasionsProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Yeni özel gün ekle ve 14 gün öncesine bildirim kur
+  // Yeni özel gün ekle ve seçilen gün kadar öncesine bildirim kur
   const addOccasion = useCallback(
     async (
       data: Omit<SpecialOccasion, 'id' | 'createdAt' | 'notificationId'>
@@ -116,7 +116,7 @@ export function OccasionsProvider({ children }: { children: React.ReactNode }) {
         createdAt: Date.now(),
       };
 
-      // 14 gün öncesine bildirimi kur
+      // Seçilen gün kadar öncesine bildirimi kur
       const notificationId = await scheduleOccasionReminder(newOccasion);
       if (notificationId) {
         newOccasion.notificationId = notificationId;

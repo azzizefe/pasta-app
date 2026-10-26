@@ -3,15 +3,46 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import type { CakeKind, ImageQuality } from '../types/savedCake';
+
 const STORAGE_KEY = '@lumiere_user_credits_v1';
-export const INITIAL_CREDITS = 25; // 25 Kredi hoş geldin hediyesi
+// Hoş geldin hediyesi: 15 kredi. Veritabanındaki
+// public.welcome_credits() ile aynı olmalı (supabase/migrations/20261023_hosgeldin_kredisi_30.sql).
+export const INITIAL_CREDITS = 15;
 export const CREDITS_PER_GENERATION = 15;
-// Display-only "was" price shown struck through next to the real cost.
+// Display-only "was" price shown struck through next to the real cost (20 krediden 15 krediye)
 export const CREDITS_PER_GENERATION_LIST_PRICE = 20;
+export const CREDITS_PER_GENERATION_4K = 15;
+
+/** A spend or top-up must be a whole, positive number; anything else is refused. */
+function toCreditAmount(amount: number): number | null {
+  return Number.isInteger(amount) && amount > 0 ? amount : null;
+}
+
+/** The balance is a whole number that never drops below 0. */
+function toBalance(value: number): number {
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+export function getGenerationCost(_quality?: ImageQuality, kind?: CakeKind) {
+  if (kind === 'diy') {
+    return 15;
+  }
+  return CREDITS_PER_GENERATION;
+}
+
+export function getGenerationListPrice(kind?: CakeKind) {
+  if (kind === 'diy') {
+    return 20;
+  }
+  return CREDITS_PER_GENERATION_LIST_PRICE;
+}
 
 type CreditsContextType = {
   credits: number;
@@ -40,9 +71,12 @@ export function CreditsProvider({ children }: { children: React.ReactNode }) {
       try {
         const stored = await AsyncStorage.getItem(STORAGE_KEY);
         if (stored !== null) {
-          const parsed = parseInt(stored, 10);
-          if (!isNaN(parsed) && parsed >= 0) {
-            setCredits(parsed);
+          // A tampered or corrupt value (negative, text) counts as 0, never as a fresh start.
+          const balance = toBalance(Number(stored));
+          balanceRef.current = balance;
+          setCredits(balance);
+          if (String(balance) !== stored) {
+            await AsyncStorage.setItem(STORAGE_KEY, String(balance));
           }
         } else {
           await AsyncStorage.setItem(STORAGE_KEY, String(INITIAL_CREDITS));
@@ -56,36 +90,66 @@ export function CreditsProvider({ children }: { children: React.ReactNode }) {
     loadCredits();
   }, []);
 
+  // Async flows (generate → refund, purchase) call these long after render, so they
+  // must read the live balance rather than the value captured when they were created.
+  const balanceRef = useRef(INITIAL_CREDITS);
+
+  // On the web every open tab holds its own copy of the balance; follow the other tabs'
+  // writes so two tabs can't each spend the same credits.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== STORAGE_KEY || event.newValue === null) return;
+      const balance = toBalance(Number(event.newValue));
+      balanceRef.current = balance;
+      setCredits(balance);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   const persistCredits = useCallback((newAmount: number) => {
-    setCredits(newAmount);
-    AsyncStorage.setItem(STORAGE_KEY, String(newAmount)).catch((err) => {
+    const balance = toBalance(newAmount);
+    balanceRef.current = balance;
+    setCredits(balance);
+    AsyncStorage.setItem(STORAGE_KEY, String(balance)).catch((err) => {
       console.warn('Kredi bakiyesi kaydedilemedi:', err);
     });
   }, []);
 
   const addCredits = useCallback(
     (amount: number) => {
-      persistCredits(credits + amount);
+      // A negative "top-up" would be a back door for spending past zero.
+      const credit = toCreditAmount(amount);
+      if (credit === null) return;
+      persistCredits(balanceRef.current + credit);
     },
-    [credits, persistCredits],
+    [persistCredits],
   );
 
   const hasEnoughCredits = useCallback(
     (amount: number = CREDITS_PER_GENERATION) => {
-      return credits >= amount;
+      const cost = toCreditAmount(amount);
+      const balance = balanceRef.current;
+      return cost !== null && balance > 0 && balance >= cost;
     },
+    // Re-created on every balance change so consumers re-render with fresh answers.
     [credits],
   );
 
+  /** Takes the credits for one generation; returns false (and takes nothing) if it can't. */
   const deductCredits = useCallback(
     (amount: number = CREDITS_PER_GENERATION) => {
-      if (credits < amount) {
+      // A negative cost would turn a spend into a top-up (-1000 "spent" = +1000 credits).
+      const cost = toCreditAmount(amount);
+      const balance = balanceRef.current;
+      if (cost === null || balance <= 0 || balance < cost) {
         return false;
       }
-      persistCredits(credits - amount);
+      persistCredits(balance - cost);
       return true;
     },
-    [credits, persistCredits],
+    [persistCredits],
   );
 
   const openPurchaseModal = useCallback(() => setIsPurchaseModalOpen(true), []);

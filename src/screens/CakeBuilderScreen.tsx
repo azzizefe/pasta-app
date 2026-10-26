@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -10,20 +9,27 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ChevronLeftIcon, CoinsIcon, PlusIcon, SparkleIcon } from '../components/Icons';
+import { ChevronDownIcon, ChevronLeftIcon, CoinsIcon, PlusIcon, SparkleIcon } from '../components/Icons';
+import CurrencyPickerModal from '../components/CurrencyPickerModal';
 import ReferenceImagePicker from '../components/ReferenceImagePicker';
 import { PressableScale, ShineSweep } from '../components/motion';
 import {
   CREDITS_PER_GENERATION,
   CREDITS_PER_GENERATION_LIST_PRICE,
+  getGenerationCost,
+  getGenerationListPrice,
   useCredits,
 } from '../context/CreditsContext';
+import type { CakeDetails, ImageQuality } from '../types/savedCake';
 import CakeResultScreen from './CakeResultScreen';
+import { evaluateBudget } from '../utils/budgetHelper';
 import { fonts, home } from '../theme/theme';
+import { ENV } from '../config/env';
 
 export type CakeKind = 'wedding' | 'birthday' | 'engagement' | 'custom' | 'diy';
 
@@ -53,6 +59,8 @@ function capitalize(text: string) {
   return text.charAt(0).toLocaleUpperCase('tr-TR') + text.slice(1);
 }
 
+
+
 type ChipProps = {
   option: Option;
   active: boolean;
@@ -73,6 +81,7 @@ function Chip({ option, active, onPress }: ChipProps) {
     </Pressable>
   );
 }
+
 
 type SectionProps = {
   title: string;
@@ -107,9 +116,10 @@ type NumberFieldProps = {
   placeholder: string;
   suffix?: string;
   maxLength: number;
+  suggestions?: { label: string; value: string }[];
 };
 
-/** A free-typed number, for values with too wide a range for a chip list. */
+/** A free-typed number, with optional one-tap quick-select chips. */
 function NumberField({
   title,
   value,
@@ -117,10 +127,34 @@ function NumberField({
   placeholder,
   suffix,
   maxLength,
+  suggestions,
 }: NumberFieldProps) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionLabel}>{title}</Text>
+      {suggestions && suggestions.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.suggestionRow}
+        >
+          {suggestions.map((item) => {
+            const active = value.trim() === item.value;
+            return (
+              <Pressable
+                key={item.value}
+                accessibilityRole="button"
+                onPress={() => onChangeText(active ? '' : item.value)}
+                style={[styles.suggestionChip, active && styles.suggestionChipActive]}
+              >
+                <Text style={[styles.suggestionText, active && styles.suggestionTextActive]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
       <View style={styles.numberInputRow}>
         <TextInput
           value={value}
@@ -142,13 +176,37 @@ type TextFieldProps = {
   value: string;
   onChangeText: (text: string) => void;
   placeholder: string;
+  suggestions?: string[];
 };
 
 /** A free-typed word or phrase, for values too varied for a chip list. */
-function TextField({ title, value, onChangeText, placeholder }: TextFieldProps) {
+function TextField({ title, value, onChangeText, placeholder, suggestions }: TextFieldProps) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionLabel}>{title}</Text>
+      {suggestions && suggestions.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.suggestionRow}
+        >
+          {suggestions.map((item) => {
+            const active = value.trim().toLocaleLowerCase('tr-TR') === item.toLocaleLowerCase('tr-TR');
+            return (
+              <Pressable
+                key={item}
+                accessibilityRole="button"
+                onPress={() => onChangeText(active ? '' : item)}
+                style={[styles.suggestionChip, active && styles.suggestionChipActive]}
+              >
+                <Text style={[styles.suggestionText, active && styles.suggestionTextActive]}>
+                  {item}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
       <TextInput
         value={value}
         onChangeText={onChangeText}
@@ -166,67 +224,57 @@ type TagFieldProps = {
   tags: string[];
   onAdd: (tag: string) => void;
   onRemove: (tag: string) => void;
+  suggestions?: string[];
 };
 
 /** Type a word, tap +, and it drops in as a removable tag below. */
-function TagField({ title, placeholder, tags, onAdd, onRemove }: TagFieldProps) {
-  const [draft, setDraft] = useState('');
-
-  const handleAdd = useCallback(() => {
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-    onAdd(trimmed);
-    setDraft('');
-  }, [draft, onAdd]);
-
+function TagField({ title, placeholder, tags, onAdd, onRemove, suggestions }: TagFieldProps) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionLabel}>{title}</Text>
-      <View style={styles.tagInputRow}>
-        <TextInput
-          value={draft}
-          onChangeText={setDraft}
-          placeholder={placeholder}
-          placeholderTextColor={home.muted}
-          style={styles.tagInput}
-          onSubmitEditing={handleAdd}
-          returnKeyType="done"
-        />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Ekle"
-          onPress={handleAdd}
-          android_ripple={{ color: home.divider, borderless: true }}
-          style={styles.tagAddButton}
+      {suggestions && suggestions.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.suggestionRow}
         >
-          <PlusIcon size={18} color="#FDF6E9" />
-        </Pressable>
-      </View>
-
-      {tags.length > 0 && (
-        <View style={[styles.chipRow, styles.tagsRow]}>
-          {tags.map((tag) => (
-            <Pressable
-              key={tag}
-              accessibilityRole="button"
-              accessibilityLabel={`${tag} etiketini kaldır`}
-              onPress={() => onRemove(tag)}
-              android_ripple={{ color: home.divider }}
-              style={[styles.chip, styles.chipActive, styles.tagChip]}
-            >
-              <Text style={[styles.chipLabel, styles.chipLabelActive]}>{tag}</Text>
-              <Text style={styles.tagRemove}>×</Text>
-            </Pressable>
-          ))}
-        </View>
+          {suggestions.map((item) => {
+            const active = tags.some(
+              (t) => t.toLocaleLowerCase('tr-TR') === item.toLocaleLowerCase('tr-TR'),
+            );
+            return (
+              <Pressable
+                key={item}
+                accessibilityRole="button"
+                onPress={() => (active ? onRemove(item) : onAdd(item))}
+                style={[styles.suggestionChip, active && styles.suggestionChipActive]}
+              >
+                <Text style={styles.suggestionText}>{item}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       )}
+      <View style={styles.tagRow}>
+        {tags.map((tag) => (
+          <Pressable
+            key={tag}
+            accessibilityRole="button"
+            onPress={() => onRemove(tag)}
+            style={styles.tagChip}
+          >
+            <Text style={styles.tagLabel}>{tag}</Text>
+            <Text style={styles.tagRemove}>×</Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
 
 /** A list of freely-typed tags with add/remove, backing every TagField. */
-function useTagList(): [string[], (tag: string) => void, (tag: string) => void] {
-  const [tags, setTags] = useState<string[]>([]);
+function useTagList(initial: string[] = []): [string[], (tag: string) => void, (tag: string) => void] {
+  const [tags, setTags] = useState<string[]>(initial);
 
   const add = useCallback((tag: string) => {
     setTags((prev) =>
@@ -245,6 +293,7 @@ function useTagList(): [string[], (tag: string) => void, (tag: string) => void] 
 
 type Props = {
   kind: CakeKind;
+  initialDetails?: CakeDetails;
   onClose: () => void;
 };
 
@@ -252,34 +301,57 @@ type Props = {
  * Full-screen cake configurator: pick serving size, tiers, palette, and
  * decoration density, then compose that into a single design prompt.
  */
-export default function CakeBuilderScreen({ kind, onClose }: Props) {
+export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const info = CAKE_KIND_INFO[kind];
   const { credits, hasEnoughCredits, openPurchaseModal } = useCredits();
 
-  const [guestCount, setGuestCount] = useState('');
-  const [tierCount, setTierCount] = useState('');
-  const [cakeType, setCakeType] = useState('');
-  const [coating, setCoating] = useState('');
-  const [palette, setPalette] = useState('');
-  const [shape, setShape] = useState('');
-  const [writing, setWriting] = useState('');
-  const [decor, setDecor] = useState<Option | null>(null);
-  const [notes, setNotes] = useState('');
+  const [guestCount, setGuestCount] = useState(
+    initialDetails?.guests ? String(initialDetails.guests) : '',
+  );
+  const [tierCount, setTierCount] = useState(
+    initialDetails?.tier ? String(initialDetails.tier) : '',
+  );
+  const [budget, setBudget] = useState(
+    initialDetails?.budget ? String(initialDetails.budget) : '',
+  );
+  const [currency, setCurrency] = useState(initialDetails?.currency ?? 'TRY');
+  const [isCurrencyPickerOpen, setIsCurrencyPickerOpen] = useState(false);
+  const [cakeType, setCakeType] = useState(initialDetails?.flavor ?? '');
+  const [coating, setCoating] = useState(initialDetails?.coating ?? '');
+  const [palette, setPalette] = useState(initialDetails?.color ?? '');
+  const [shape, setShape] = useState(initialDetails?.shape ?? '');
+  const [writing, setWriting] = useState(initialDetails?.writing ?? '');
+  const [decor, setDecor] = useState<Option | null>(
+    initialDetails?.decor
+      ? DECOR_OPTIONS.find((o) => o.label === initialDetails.decor) ?? null
+      : null,
+  );
+  const [notes, setNotes] = useState(initialDetails?.customNotes ?? '');
 
   // İlham Fotoğrafı (Image-to-Cake) State'leri
-  const [referenceImageUri, setReferenceImageUri] = useState<string | null>(null);
-  const [referenceImageBase64, setReferenceImageBase64] = useState<string | null>(null);
+  const [referenceImageUri, setReferenceImageUri] = useState<string | null>(
+    initialDetails?.referenceImageUri ?? null,
+  );
+  const [referenceImageBase64, setReferenceImageBase64] = useState<string | null>(
+    initialDetails?.referenceImageBase64 ?? null,
+  );
 
-  const [fillingTags, addFillingTag, removeFillingTag] = useTagList();
-  const [textureTags, addTextureTag, removeTextureTag] = useTagList();
-  const [finishTags, addFinishTag, removeFinishTag] = useTagList();
-  const [metallicTags, addMetallicTag, removeMetallicTag] = useTagList();
-  const [dripTags, addDripTag, removeDripTag] = useTagList();
-  const [themeTags, addThemeTag, removeThemeTag] = useTagList();
-  const [decorTags, addDecorTag, removeDecorTag] = useTagList();
-  const [backgroundTags, addBackgroundTag, removeBackgroundTag] = useTagList();
-  const [dietTags, addDietTag, removeDietTag] = useTagList();
+  const [fillingTags, addFillingTag, removeFillingTag] = useTagList(
+    initialDetails?.fillingTags ?? [],
+  );
+  const [theme, setTheme] = useState(initialDetails?.themeTags?.[0] ?? '');
+  const [texture, setTexture] = useState(initialDetails?.textureTags?.[0] ?? '');
+  const finishTags = initialDetails?.finishTags ?? [];
+  const metallicTags = initialDetails?.metallicTags ?? [];
+  const dripTags = initialDetails?.dripTags ?? [];
+  const [decorTags, addDecorTag, removeDecorTag] = useTagList(
+    initialDetails?.decorTags ?? [],
+  );
+  const backgroundTags = initialDetails?.backgroundTags ?? [];
+  const [dietTags, addDietTag, removeDietTag] = useTagList(
+    initialDetails?.dietTags ?? [],
+  );
 
   const handleGuestCountChange = useCallback((text: string) => {
     setGuestCount(text.replace(/[^0-9]/g, '').slice(0, 4));
@@ -289,9 +361,26 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
     setTierCount(text.replace(/[^0-9]/g, '').slice(0, 2));
   }, []);
 
+  const handleBudgetChange = useCallback((text: string) => {
+    setBudget(text.replace(/[^0-9]/g, '').slice(0, 8));
+  }, []);
+
+  const budgetEvaluation = useMemo(() => {
+    return evaluateBudget(budget, guestCount, currency);
+  }, [budget, guestCount, currency]);
+
   const prompt = useMemo(() => {
     const guestPhrase = guestCount ? `${guestCount} kişilik` : null;
     const tierPhrase = tierCount ? `${tierCount} katlı` : null;
+    const budgetPhrase = budgetEvaluation.hasBudget
+      ? `bütçe odaklı tasarım (~${budgetEvaluation.portionWeightGr}g porsiyon ölçeğinde ${
+          budgetEvaluation.tier === 'luxury'
+            ? 'ultra lüks haute pâtisserie detaylarıyla'
+            : budgetEvaluation.tier === 'under_minimum' || budgetEvaluation.tier === 'economic'
+            ? 'akıllı ve minimalist butik tasarımıyla'
+            : 'standart butik pastacılık kalitesinde'
+        })`
+      : null;
     // Lowercased so a capitalized word (as typed) doesn't stand out mid-sentence.
     const toLower = (text: string) => text.trim().toLocaleLowerCase('tr-TR');
     const cakeTypePhrase = cakeType.trim() ? `${toLower(cakeType)} bazlı` : null;
@@ -302,15 +391,18 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
     const shapePhrase = shape.trim() ? toLower(shape) : null;
     // The written text keeps its own casing — it's literal typography, not an adjective.
     const writingPhrase = writing.trim() ? `üzerinde "${writing.trim()}" yazılı` : null;
+    const themePhrase = theme.trim() ? `${toLower(theme)} temalı` : null;
+    const texturePhrase = texture.trim() ? toLower(texture) : null;
     const fragments = [
       guestPhrase,
       tierPhrase,
-      ...themeTags.map((tag) => `${toLower(tag)} temalı`),
+      budgetPhrase,
+      themePhrase,
       palettePhrase,
       cakeTypePhrase,
       ...fillingTags.map((tag) => `${toLower(tag)} dolgulu`),
       coatingPhrase,
-      ...textureTags.map((tag) => toLower(tag)),
+      texturePhrase,
       ...finishTags.map((tag) => `${toLower(tag)} bitişli`),
       ...metallicTags.map((tag) => `${toLower(tag)} detaylı`),
       ...dripTags.map((tag) => `${toLower(tag)} renginde drip efektli`),
@@ -335,13 +427,13 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
     cakeType,
     fillingTags,
     coating,
-    textureTags,
+    texture,
     finishTags,
     palette,
     metallicTags,
     dripTags,
     shape,
-    themeTags,
+    theme,
     decor,
     decorTags,
     writing,
@@ -349,21 +441,23 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
     dietTags,
     notes,
     info.phrase,
+    budgetEvaluation,
   ]);
 
   const hasSelection =
     guestCount ||
     tierCount ||
+    budget.trim() ||
     cakeType.trim() ||
     fillingTags.length > 0 ||
     coating.trim() ||
-    textureTags.length > 0 ||
+    texture.trim() ||
     finishTags.length > 0 ||
     palette.trim() ||
     metallicTags.length > 0 ||
     dripTags.length > 0 ||
     shape.trim() ||
-    themeTags.length > 0 ||
+    theme.trim() ||
     decor ||
     decorTags.length > 0 ||
     writing.trim() ||
@@ -373,16 +467,19 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
     Boolean(referenceImageUri);
 
   const [showResult, setShowResult] = useState(false);
+  const quality: ImageQuality = '4k';
+  const cost = getGenerationCost(quality, kind);
+  const listPrice = getGenerationListPrice(kind);
 
   const handleGenerate = useCallback(() => {
     if (!hasSelection) {
-      Alert.alert('Eksik seçim', 'Tasarımı oluşturmadan önce en az bir seçenek belirle veya ilham fotoğrafı yükle.');
+      showAlert('Eksik seçim', 'Tasarımı oluşturmadan önce en az bir seçenek belirle veya ilham fotoğrafı yükle.');
       return;
     }
-    if (!hasEnoughCredits(CREDITS_PER_GENERATION)) {
-      Alert.alert(
+    if (!hasEnoughCredits(cost)) {
+      showAlert(
         'Yetersiz Kredi',
-        `Fotoğraf oluşturmak için ${CREDITS_PER_GENERATION} kredi gereklidir. Mevcut bakiyen: ${credits} Kredi.`,
+        `Fotoğraf oluşturmak için ${cost} kredi gereklidir. Mevcut bakiyen: ${credits} Kredi.`,
         [
           { text: 'Vazgeç', style: 'cancel' },
           { text: 'Kredi Yükle', onPress: openPurchaseModal },
@@ -392,7 +489,7 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
     }
     console.log('Generated prompt:', prompt);
     setShowResult(true);
-  }, [hasSelection, hasEnoughCredits, credits, openPurchaseModal, prompt]);
+  }, [hasSelection, hasEnoughCredits, cost, credits, openPurchaseModal, prompt]);
 
   const handleBackToForm = useCallback(() => setShowResult(false), []);
 
@@ -402,12 +499,31 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
         title={info.title}
         prompt={prompt}
         kind={kind}
+        quality={quality}
         details={{
+          quality,
+          templateTitle: initialDetails?.templateTitle,
+          guests: guestCount ? parseInt(guestCount, 10) : undefined,
           tier: tierCount ? parseInt(tierCount, 10) : undefined,
+          budget: budgetEvaluation.hasBudget ? budgetEvaluation.budgetAmount : undefined,
+          currency: budgetEvaluation.currency.code,
+          budgetTier: budgetEvaluation.hasBudget ? budgetEvaluation.tier : undefined,
+          portionWeightGr: budgetEvaluation.portionWeightGr,
           shape: shape.trim() || undefined,
           flavor: cakeType.trim() || undefined,
+          coating: coating.trim() || undefined,
           color: palette.trim() || undefined,
           decor: decor?.label,
+          writing: writing.trim() || undefined,
+          fillingTags: fillingTags.length > 0 ? fillingTags : undefined,
+          textureTags: texture.trim() ? [texture.trim()] : undefined,
+          finishTags: finishTags.length > 0 ? finishTags : undefined,
+          metallicTags: metallicTags.length > 0 ? metallicTags : undefined,
+          dripTags: dripTags.length > 0 ? dripTags : undefined,
+          themeTags: theme.trim() ? [theme.trim()] : undefined,
+          decorTags: decorTags.length > 0 ? decorTags : undefined,
+          backgroundTags: backgroundTags.length > 0 ? backgroundTags : undefined,
+          dietTags: dietTags.length > 0 ? dietTags : undefined,
           customNotes: notes.trim() || undefined,
           referenceImageUri: referenceImageUri || undefined,
           referenceImageBase64: referenceImageBase64 || undefined,
@@ -479,12 +595,22 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
             }}
           />
 
+
+
           <NumberField
             title="KAÇ KİŞİLİK?"
             value={guestCount}
             onChangeText={handleGuestCountChange}
             placeholder="Örn: 25"
             maxLength={4}
+            suggestions={[
+              { label: '6 Kişi', value: '6' },
+              { label: '10 Kişi', value: '10' },
+              { label: '15 Kişi', value: '15' },
+              { label: '25 Kişi', value: '25' },
+              { label: '40 Kişi', value: '40' },
+              { label: '50+ Kişi', value: '50' },
+            ]}
           />
 
           <NumberField
@@ -493,74 +619,183 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
             onChangeText={handleTierCountChange}
             placeholder="Örn: 3"
             maxLength={2}
+            suggestions={[
+              { label: '1 Katlı', value: '1' },
+              { label: '2 Katlı', value: '2' },
+              { label: '3 Katlı', value: '3' },
+              { label: '4 Katlı', value: '4' },
+            ]}
           />
 
-          <TagField
+          {/* Bütçe ve Para Birimi Seçici */}
+          <View style={styles.section}>
+            <View style={styles.budgetHeaderRow}>
+              <Text style={styles.sectionLabel}>PASTA BÜTÇESİ</Text>
+              <Text style={styles.budgetOptionalHint}>İSTEĞE BAĞLI / ÖNERİLEN</Text>
+            </View>
+            <View style={styles.budgetInputRow}>
+              <TextInput
+                value={budget}
+                onChangeText={handleBudgetChange}
+                placeholder={`Örn: ${budgetEvaluation.currency.placeholder}`}
+                placeholderTextColor={home.muted}
+                keyboardType="number-pad"
+                maxLength={8}
+                style={styles.budgetInput}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Para Birimi Seç: ${budgetEvaluation.currency.code}`}
+                onPress={() => setIsCurrencyPickerOpen(true)}
+                style={styles.currencySelectBtn}
+              >
+                <Text style={styles.currencyBtnFlag}>{budgetEvaluation.currency.flag}</Text>
+                <Text style={styles.currencyBtnText}>
+                  {budgetEvaluation.currency.symbol} {budgetEvaluation.currency.code}
+                </Text>
+                <ChevronDownIcon size={14} color={home.ink} />
+              </Pressable>
+            </View>
+
+            {/* Akıllı Bütçe & Gramaj Değerlendirme Kartı */}
+            {budgetEvaluation.hasBudget && (
+              <View
+                style={[
+                  styles.budgetEvaluationCard,
+                  budgetEvaluation.badgeStatus === 'warning' && styles.budgetCardWarning,
+                  budgetEvaluation.badgeStatus === 'gold' && styles.budgetCardGold,
+                ]}
+              >
+                <View style={styles.budgetBadgeRow}>
+                  <View
+                    style={[
+                      styles.budgetTierBadge,
+                      budgetEvaluation.badgeStatus === 'warning' && styles.budgetTierBadgeWarning,
+                      budgetEvaluation.badgeStatus === 'gold' && styles.budgetTierBadgeGold,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.budgetTierBadgeText,
+                        budgetEvaluation.badgeStatus === 'warning' && styles.budgetTierBadgeTextWarning,
+                        budgetEvaluation.badgeStatus === 'gold' && styles.budgetTierBadgeTextGold,
+                      ]}
+                    >
+                      {budgetEvaluation.badgeLabel}
+                    </Text>
+                  </View>
+                  <Text style={styles.budgetPerGuestText}>
+                    ~{budgetEvaluation.perGuest?.toLocaleString()} {budgetEvaluation.currency.symbol} / kişi
+                  </Text>
+                </View>
+
+                <Text style={styles.budgetEvaluationMessage}>
+                  {budgetEvaluation.message}
+                </Text>
+
+                <View style={styles.budgetMetricPills}>
+                  <View style={styles.budgetMetricPill}>
+                    <Text style={styles.budgetMetricLabel}>Porsiyon Gramajı</Text>
+                    <Text style={styles.budgetMetricValue}>~{budgetEvaluation.portionWeightGr} g / kişi</Text>
+                  </View>
+                  <View style={styles.budgetMetricPill}>
+                    <Text style={styles.budgetMetricLabel}>Tahmini Pasta Ağırlığı</Text>
+                    <Text style={styles.budgetMetricValue}>~{budgetEvaluation.totalWeightKg} kg</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+
+          <TextField
             title="TEMA"
+            value={theme}
+            onChangeText={setTheme}
             placeholder="Örn: Rustik"
-            tags={themeTags}
-            onAdd={addThemeTag}
-            onRemove={removeThemeTag}
+            suggestions={['Romantik', 'Kraliyet Lüks', 'Rustik Bohem', 'Vintage Lambeth', 'Minimalist Modern']}
           />
           <TextField
             title="RENK PALETİ"
             value={palette}
             onChangeText={setPalette}
             placeholder="Örn: Mor & Lila"
+            suggestions={[
+              'Fildişi & Altın',
+              'Pudra Pembe & Krem',
+              'Mor & Lavanta',
+              'Zümrüt & Antep Fıstığı',
+              'Bitter Kakao & Karamel',
+            ]}
           />
 
           <TextField
-            title="KEK TÜRÜ"
+            title="KEK HAMURU VE TÜRÜ"
             value={cakeType}
             onChangeText={setCakeType}
             placeholder="Örn: Red Velvet"
+            suggestions={[
+              'Madagaskar Vanilyalı',
+              'Red Velvet',
+              'Belçika Çikolatalı',
+              'Antep Fıstıklı Pandispanya',
+              'Limon & Haşhaşlı',
+            ]}
           />
           <TagField
-            title="İÇ MALZEME VE DOLGU"
+            title="İÇ MALZEME VE DOLGU KREMASI"
             placeholder="Örn: Çilek"
             tags={fillingTags}
             onAdd={addFillingTag}
             onRemove={removeFillingTag}
+            suggestions={[
+              'Taze Çilek',
+              'Orman Meyveleri',
+              'Beyaz Çikolata Ganaj',
+              'Fıstık Pralin',
+              'Tuzlu Karamel',
+              'Mascarpone Krema',
+            ]}
           />
           <TextField
-            title="DIŞ KAPLAMA"
+            title="DIŞ SIVAMA VE KAPLAMA"
             value={coating}
             onChangeText={setCoating}
             placeholder="Örn: Krem Şanti"
+            suggestions={[
+              'İsviçre Mereng Krema',
+              'Pürüzsüz Fondan',
+              'Beyaz Çikolata Ganaj',
+              'Hafif Krema (Naked)',
+              'Kadife Sprey Çikolata',
+            ]}
           />
-          <TagField
+          <TextField
             title="YÜZEY DOKUSU"
+            value={texture}
+            onChangeText={setTexture}
             placeholder="Örn: Dokulu krema"
-            tags={textureTags}
-            onAdd={addTextureTag}
-            onRemove={removeTextureTag}
+            suggestions={[
+              'Pürüzsüz & Düz',
+              'Spatula Dokulu',
+              'Dalgalı Krema',
+              'Çizgili & Taraklı',
+              'Rustik Sıvama',
+            ]}
           />
-          <TagField
-            title="BİTİŞ PARLAKLIĞI"
-            placeholder="Örn: Parlak (Glossy)"
-            tags={finishTags}
-            onAdd={addFinishTag}
-            onRemove={removeFinishTag}
-          />
-          <TagField
-            title="METALİK AKSAN"
-            placeholder="Örn: Altın varak"
-            tags={metallicTags}
-            onAdd={addMetallicTag}
-            onRemove={removeMetallicTag}
-          />
-          <TagField
-            title="DAMLA (DRIP) RENGİ"
-            placeholder="Örn: Çikolata"
-            tags={dripTags}
-            onAdd={addDripTag}
-            onRemove={removeDripTag}
-          />
+
           <TextField
             title="ŞEKİL VE FORM"
             value={shape}
             onChangeText={setShape}
             placeholder="Örn: Kalp Şeklinde"
+            suggestions={[
+              'Yuvarlak Klasik',
+              'Kalp Şeklinde',
+              'Modern Kare',
+              'Altıgen Geometrik',
+              'Yüksek Silindir (Tall)',
+              'Asimetrik Katlı',
+            ]}
           />
           <OptionSection
             title="SÜSLEME YOĞUNLUĞU"
@@ -574,30 +809,92 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
             tags={decorTags}
             onAdd={addDecorTag}
             onRemove={removeDecorTag}
+            suggestions={[
+              'Şeker Çiçekler',
+              'Altın Varak Detayı',
+              'Makaronlar & Bezeler',
+              'İnci Taneleri',
+              'Taze Çilek & Meyve',
+              'Çikolata Figürleri',
+              'Kurutulmuş Portakal',
+              'İzomalt Şeker Taç',
+            ]}
           />
           <TextField
             title="ÜZERİNDEKİ YAZI"
             value={writing}
             onChangeText={setWriting}
             placeholder="Örn: Mutlu Yıllar"
+            suggestions={[
+              'İyi ki Doğdun',
+              'Mutlu Yıllar',
+              'Just Married',
+              'Seni Seviyorum',
+              'Tebrikler',
+              '1 Yaşında',
+              'Hoş Geldin Bebek',
+              'Birlikte Nice Yıllara',
+            ]}
           />
-          <TagField
-            title="ARKA PLAN VE ORTAM"
-            placeholder="Örn: Çiçekli masa"
-            tags={backgroundTags}
-            onAdd={addBackgroundTag}
-            onRemove={removeBackgroundTag}
-          />
+
           <TagField
             title="DİYET VE ALERJEN BİLDİRİMLERİ"
             placeholder="Örn: Glutensiz"
             tags={dietTags}
             onAdd={addDietTag}
             onRemove={removeDietTag}
+            suggestions={[
+              'Glutensiz',
+              'Vegan',
+              'Laktozsuz',
+              'Rafine Şekersiz',
+              'Fındık & Fıstıksız',
+              'Yumurtasız',
+              'Düşük Kalorili',
+            ]}
           />
 
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>EK İSTEKLERİN</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.suggestionRow}
+            >
+              {[
+                'Pırıl pırıl stüdyo ışığı',
+                'Pastel ve naif tonlar',
+                'Zarif masa düzeni',
+                'Ultra lüks detaylar',
+                'Fotoğraf çekimi konsepti',
+              ].map((item) => {
+                const active = notes.includes(item);
+                return (
+                  <Pressable
+                    key={item}
+                    accessibilityRole="button"
+                    onPress={() => {
+                      if (active) {
+                        setNotes((prev) =>
+                          prev
+                            .replace(item, '')
+                            .replace(/,\s*,/g, ',')
+                            .replace(/^,\s*|,\s*$/g, '')
+                            .trim(),
+                        );
+                      } else {
+                        setNotes((prev) => (prev.trim() ? `${prev.trim()}, ${item}` : item));
+                      }
+                    }}
+                    style={[styles.suggestionChip, active && styles.suggestionChipActive]}
+                  >
+                    <Text style={[styles.suggestionText, active && styles.suggestionTextActive]}>
+                      {active ? '✓ ' : '+ '} {item}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
             <TextInput
               value={notes}
               onChangeText={setNotes}
@@ -620,7 +917,7 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
           />
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={`Tasarımı Oluştur, ${CREDITS_PER_GENERATION} Kredi`}
+            accessibilityLabel={`Tasarımı Oluştur, ${cost} Kredi`}
             onPress={handleGenerate}
             android_ripple={{ color: 'rgba(243,217,166,0.16)' }}
             scaleTo={0.975}
@@ -637,13 +934,20 @@ export default function CakeBuilderScreen({ kind, onClose }: Props) {
               <Text style={styles.generateLabel}>Tasarımı Oluştur</Text>
               <View style={styles.generatePriceRow}>
                 <SparkleIcon size={14} color={home.accentGold} />
-                <Text style={styles.generateOldPrice}>{CREDITS_PER_GENERATION_LIST_PRICE}</Text>
-                <Text style={styles.generatePrice}>{CREDITS_PER_GENERATION} Kredi</Text>
+                <Text style={styles.generateOldPrice}>30</Text>
+                <Text style={styles.generatePrice}>20 Kredi</Text>
               </View>
             </LinearGradient>
           </PressableScale>
         </View>
       </KeyboardAvoidingView>
+
+      <CurrencyPickerModal
+        visible={isCurrencyPickerOpen}
+        selectedCurrency={currency}
+        onSelect={(curr) => setCurrency(curr.code)}
+        onClose={() => setIsCurrencyPickerOpen(false)}
+      />
     </View>
   );
 }
@@ -718,6 +1022,31 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     color: home.muted,
   },
+  suggestionRow: {
+    gap: 8,
+    paddingBottom: 10,
+  },
+  suggestionChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    borderRadius: 14,
+    backgroundColor: '#FFFDF9',
+    borderWidth: 1,
+    borderColor: 'rgba(216, 196, 168, 0.65)',
+  },
+  suggestionChipActive: {
+    backgroundColor: 'rgba(243, 217, 166, 0.42)',
+    borderColor: home.gold,
+  },
+  suggestionText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: home.ink,
+  },
+  suggestionTextActive: {
+    color: home.ink,
+    fontWeight: '700',
+  },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -743,6 +1072,35 @@ const styles = StyleSheet.create({
     color: '#FDF6E9',
     fontWeight: '600',
   },
+  // New styles for TagField tags
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 8,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: home.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: home.cardBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 6,
+    marginBottom: 6,
+  },
+  tagLabel: {
+    fontSize: 14,
+    color: home.ink,
+  },
+  tagRemove: {
+    marginLeft: 6,
+    fontSize: 14,
+    fontWeight: '600',
+    color: home.danger,
+  },
   numberInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -762,6 +1120,131 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     color: home.muted,
+  },
+  budgetHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  budgetOptionalHint: {
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    color: home.muted,
+  },
+  budgetInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  budgetInput: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: home.cardBorder,
+    backgroundColor: home.card,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: home.ink,
+  },
+  currencySelectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 13,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: home.cardBorder,
+    backgroundColor: home.card,
+  },
+  currencyBtnFlag: {
+    fontSize: 18,
+  },
+  currencyBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: home.ink,
+  },
+  budgetEvaluationCard: {
+    marginTop: 10,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    borderWidth: 1,
+    borderColor: home.cardBorder,
+  },
+  budgetCardWarning: {
+    backgroundColor: 'rgba(181, 67, 58, 0.05)',
+    borderColor: 'rgba(181, 67, 58, 0.28)',
+  },
+  budgetCardGold: {
+    backgroundColor: 'rgba(243, 217, 166, 0.24)',
+    borderColor: 'rgba(138, 90, 28, 0.35)',
+  },
+  budgetBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  budgetTierBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(59, 36, 22, 0.08)',
+  },
+  budgetTierBadgeWarning: {
+    backgroundColor: 'rgba(181, 67, 58, 0.12)',
+  },
+  budgetTierBadgeGold: {
+    backgroundColor: 'rgba(138, 90, 28, 0.15)',
+  },
+  budgetTierBadgeText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: home.ink,
+  },
+  budgetTierBadgeTextWarning: {
+    color: '#B5433A',
+  },
+  budgetTierBadgeTextGold: {
+    color: '#8A5A1C',
+  },
+  budgetPerGuestText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: home.body,
+  },
+  budgetEvaluationMessage: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: home.ink,
+    marginBottom: 10,
+  },
+  budgetMetricPills: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  budgetMetricPill: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(59, 36, 22, 0.04)',
+    alignItems: 'center',
+  },
+  budgetMetricLabel: {
+    fontSize: 10.5,
+    color: home.muted,
+    marginBottom: 2,
+  },
+  budgetMetricValue: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: home.ink,
   },
   tagInputRow: {
     flexDirection: 'row',
@@ -790,16 +1273,7 @@ const styles = StyleSheet.create({
   tagsRow: {
     marginTop: 12,
   },
-  tagChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  tagRemove: {
-    marginLeft: 7,
-    fontSize: 15,
-    lineHeight: 15,
-    color: '#FDF6E9',
-  },
+
   textField: {
     borderRadius: 16,
     borderWidth: 1,
@@ -880,4 +1354,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: home.accentGold,
   },
+
 });

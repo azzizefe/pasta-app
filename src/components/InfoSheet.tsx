@@ -22,7 +22,8 @@ export default function InfoSheet({ visible, title, subtitle, onClose, children 
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle="fullScreen"
+      statusBarTranslucent
       onRequestClose={onClose}
     >
       <View style={styles.root}>

@@ -41,3 +41,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Playwright
+/test-results/
+/replica/e2e-report/
+/playwright/.cache/

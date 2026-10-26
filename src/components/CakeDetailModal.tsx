@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -9,20 +8,27 @@ import {
   Text,
   View,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CakeImage from './CakeImage';
+import DiyRecipeCard from './DiyRecipeCard';
+import PastryOrderSheetModal from './PastryOrderSheetModal';
 import {
   CheckIcon,
   ChefHatIcon,
+  ChevronLeftIcon,
   CloseIcon,
   CopyIcon,
+  DocumentIcon,
   DownloadIcon,
   HeartIcon,
   SparkleIcon,
   TrashIcon,
 } from './Icons';
 import { saveCakeImageToDevice } from '../services/imageSaveService';
+import { generateCakeRecipe } from '../services/geminiRecipeService';
+import { useSavedCakes } from '../context/SavedCakesContext';
 import { SavedCake } from '../types/savedCake';
 import { fonts, home } from '../theme/theme';
 
@@ -44,8 +50,53 @@ export default function CakeDetailModal({
   onRemix,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const { updateCake } = useSavedCakes();
   const [copied, setCopied] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isOrderSheetOpen, setIsOrderSheetOpen] = useState(false);
+
+  // Kendi Pastanı Oluştur için AI Şef Tarifi State'i
+  const initialRecipe = cake?.recipe || cake?.details?.recipe || null;
+  const [recipeText, setRecipeText] = useState<string | null>(initialRecipe);
+  const [isRecipeLoading, setIsRecipeLoading] = useState(false);
+  const [recipeError, setRecipeError] = useState<string | null>(null);
+
+  const handleFetchRecipe = useCallback(async () => {
+    if (!cake || cake.kind !== 'diy') return;
+    setIsRecipeLoading(true);
+    setRecipeError(null);
+    try {
+      const res = await generateCakeRecipe(cake.prompt, cake.details);
+      setIsRecipeLoading(false);
+      if (res.success && res.recipe) {
+        setRecipeText(res.recipe);
+        updateCake(cake.id, {
+          recipe: res.recipe,
+          details: {
+            ...cake.details,
+            recipe: res.recipe,
+          },
+        });
+      } else {
+        setRecipeError(res.error || 'Tarif oluşturulamadı.');
+      }
+    } catch (err: any) {
+      setIsRecipeLoading(false);
+      setRecipeError(err?.message || 'Tarif hazırlanırken bir hata oluştu.');
+    }
+  }, [cake, updateCake]);
+
+  useEffect(() => {
+    if (!cake) return;
+    const existing = cake.recipe || cake.details?.recipe || null;
+    setRecipeText(existing);
+    setRecipeError(null);
+
+    // Kendi Pastanı Oluştur kategorisindeyse ve henüz tarif yoksa otomatik hazırla
+    if (cake.kind === 'diy' && !existing) {
+      handleFetchRecipe();
+    }
+  }, [cake?.id, cake?.kind, cake?.recipe, cake?.details?.recipe, handleFetchRecipe]);
 
   if (!cake) return null;
 
@@ -54,9 +105,9 @@ export default function CakeDetailModal({
     setIsDownloading(true);
     try {
       const res = await saveCakeImageToDevice(cake.imageUri, cake.title);
-      Alert.alert(res.success ? 'Başarılı' : 'Bilgi', res.message);
+      showAlert(res.success ? 'Başarılı' : 'Bilgi', res.message);
     } catch (e: any) {
-      Alert.alert('Hata', 'Görsel kaydedilemedi: ' + (e?.message || 'Bilinmeyen sorun'));
+      showAlert('Hata', 'Görsel kaydedilemedi: ' + (e?.message || 'Bilinmeyen sorun'));
     } finally {
       setIsDownloading(false);
     }
@@ -72,7 +123,7 @@ export default function CakeDetailModal({
   };
 
   const handleDeletePrompt = () => {
-    Alert.alert(
+    showAlert(
       'Tasarımı Sil',
       'Bu pasta tasarımını koleksiyonundan silmek istediğine emin misin?',
       [
@@ -99,7 +150,8 @@ export default function CakeDetailModal({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle="fullScreen"
+      statusBarTranslucent
       onRequestClose={onClose}
     >
       <View style={styles.root}>
@@ -113,12 +165,12 @@ export default function CakeDetailModal({
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Kapat"
+            accessibilityLabel="Geri"
             onPress={onClose}
             hitSlop={10}
             style={styles.circleBtn}
           >
-            <CloseIcon size={20} color={home.ink} />
+            <ChevronLeftIcon size={20} color={home.ink} strokeWidth={2} />
           </Pressable>
 
           <Text style={styles.headerTitle} numberOfLines={1}>
@@ -126,35 +178,6 @@ export default function CakeDetailModal({
           </Text>
 
           <View style={styles.headerRight}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Görseli İndir"
-              onPress={handleDownload}
-              disabled={isDownloading}
-              hitSlop={10}
-              style={styles.circleBtn}
-            >
-              {isDownloading ? (
-                <ActivityIndicator size="small" color={home.ink} />
-              ) : (
-                <DownloadIcon size={19} color={home.ink} />
-              )}
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Favori"
-              onPress={() => onToggleFavorite(cake.id)}
-              hitSlop={10}
-              style={[styles.circleBtn, cake.isFavorite && styles.favoriteActiveBtn]}
-            >
-              <HeartIcon
-                size={20}
-                color={cake.isFavorite ? '#E53935' : home.ink}
-                filled={cake.isFavorite}
-              />
-            </Pressable>
-
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Sil"
@@ -242,6 +265,13 @@ export default function CakeDetailModal({
                 <Text style={styles.specValue}>{cake.title}</Text>
               </View>
 
+              {cake.details?.guests && (
+                <View style={styles.specRow}>
+                  <Text style={styles.specKey}>Kişi Sayısı</Text>
+                  <Text style={styles.specValue}>{cake.details.guests} Kişilik</Text>
+                </View>
+              )}
+
               {cake.details?.tier && (
                 <View style={styles.specRow}>
                   <Text style={styles.specKey}>Kat Sayısı</Text>
@@ -263,6 +293,13 @@ export default function CakeDetailModal({
                 </View>
               )}
 
+              {cake.details?.coating && (
+                <View style={styles.specRow}>
+                  <Text style={styles.specKey}>Dış Kaplama</Text>
+                  <Text style={styles.specValue}>{cake.details.coating}</Text>
+                </View>
+              )}
+
               {cake.details?.color && (
                 <View style={styles.specRow}>
                   <Text style={styles.specKey}>Renk Paleti</Text>
@@ -274,6 +311,13 @@ export default function CakeDetailModal({
                 <View style={styles.specRow}>
                   <Text style={styles.specKey}>Süsleme</Text>
                   <Text style={styles.specValue}>{cake.details.decor}</Text>
+                </View>
+              )}
+
+              {cake.details?.writing && (
+                <View style={styles.specRow}>
+                  <Text style={styles.specKey}>Üzerindeki Yazı</Text>
+                  <Text style={styles.specValue}>"{cake.details.writing}"</Text>
                 </View>
               )}
 
@@ -299,42 +343,75 @@ export default function CakeDetailModal({
                 </View>
               )}
             </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Tam Sipariş Fişi ve AI Malzeme Rehberini Aç"
+              onPress={() => setIsOrderSheetOpen(true)}
+              style={styles.orderSheetBtn}
+            >
+              <DocumentIcon size={16} color={home.accentGold} />
+              <Text style={styles.orderSheetBtnText}>
+                Tam Sipariş Fişi & AI Malzeme Rehberini Aç
+              </Text>
+            </Pressable>
           </View>
 
-          {/* AI Prompt / Reçete */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeaderBetween}>
-              <View style={styles.sectionHeaderLeft}>
-                <SparkleIcon size={16} color={home.accentGold} />
-                <Text style={styles.sectionTitle}>YAPAY ZEKA TARİFİ</Text>
+          {/* Kendi Pastanı Oluştur için AI Şef Masterclass Tarifi */}
+          {cake.kind === 'diy' ? (
+            <DiyRecipeCard
+              recipe={recipeText}
+              isLoading={isRecipeLoading}
+              error={recipeError}
+              onRetry={handleFetchRecipe}
+              cakeTitle={cake.title}
+              isReadOnly
+            />
+          ) : (
+            <View style={styles.section}>
+              <View style={styles.sectionHeaderBetween}>
+                <View style={styles.sectionHeaderLeft}>
+                  <SparkleIcon size={16} color={home.accentGold} />
+                  <Text style={styles.sectionTitle}>YAPAY ZEKA TARİFİ</Text>
+                </View>
+
+                <Pressable
+                  onPress={handleCopyPrompt}
+                  style={styles.copyBtn}
+                  hitSlop={8}
+                >
+                  {copied ? (
+                    <>
+                      <CheckIcon size={14} color="#2E7D32" />
+                      <Text style={styles.copiedText}>Kopyalandı</Text>
+                    </>
+                  ) : (
+                    <>
+                      <CopyIcon size={14} color={home.muted} />
+                      <Text style={styles.copyText}>Kopyala</Text>
+                    </>
+                  )}
+                </Pressable>
               </View>
 
-              <Pressable
-                onPress={handleCopyPrompt}
-                style={styles.copyBtn}
-                hitSlop={8}
-              >
-                {copied ? (
-                  <>
-                    <CheckIcon size={14} color="#2E7D32" />
-                    <Text style={styles.copiedText}>Kopyalandı</Text>
-                  </>
-                ) : (
-                  <>
-                    <CopyIcon size={14} color={home.muted} />
-                    <Text style={styles.copyText}>Kopyala</Text>
-                  </>
-                )}
-              </Pressable>
+              <View style={styles.promptBox}>
+                <Text style={styles.promptText} selectable>
+                  {cake.prompt}
+                </Text>
+              </View>
             </View>
-
-            <View style={styles.promptBox}>
-              <Text style={styles.promptText} selectable>
-                {cake.prompt}
-              </Text>
-            </View>
-          </View>
+          )}
         </ScrollView>
+
+        <PastryOrderSheetModal
+          visible={isOrderSheetOpen}
+          onClose={() => setIsOrderSheetOpen(false)}
+          title={cake.title}
+          kind={cake.kind}
+          prompt={cake.prompt}
+          imageUri={cake.imageUri}
+          details={cake.details}
+        />
       </View>
     </Modal>
   );
@@ -574,6 +651,24 @@ const styles = StyleSheet.create({
   promptText: {
     fontSize: 13,
     lineHeight: 20,
+    color: home.ink,
+  },
+  orderSheetBtn: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: 'rgba(243, 217, 166, 0.28)',
+    borderWidth: 1,
+    borderColor: 'rgba(201, 154, 75, 0.45)',
+  },
+  orderSheetBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
     color: home.ink,
   },
 });

@@ -1,4 +1,9 @@
 import { ENV, hasAIBackend, isGeminiConfigured } from '../config/env';
+import type { ImageQuality } from '../types/savedCake';
+
+function toImageSize(quality: ImageQuality) {
+  return quality === '4k' ? '4K' : '2K';
+}
 
 export type GenerateImageResult = {
   success: boolean;
@@ -11,10 +16,30 @@ export type GenerateImageResult = {
  */
 function buildEnhancedPrompt(userPrompt: string, hasReference = false): string {
   const multimodalGuidance = hasReference
-    ? ' EXTREMELY IMPORTANT MULTIMODAL INSTRUCTION: Carefully examine the attached inspiration photo (such as wedding dress fabric, invitation card, floral theme, or venue decor). Harmoniously incorporate its exact color palette, motifs, textures, and aesthetic styling into the cake decorations, frosting, and presentation.'
+    ? ' EXTREMELY IMPORTANT MULTIMODAL INSTRUCTION: Carefully examine the attached inspiration photo (such as fabric texture, color palette, graphic motif, or stationery style). Harmoniously incorporate its exact color palette, motifs, textures, and aesthetic styling into the cake decorations, frosting, and presentation without adding extraneous unrequested items.'
     : '';
 
-  return `Professional high-end gourmet culinary food photography of an exquisite handcrafted cake: ${userPrompt}.${multimodalGuidance} Studio lighting, award-winning pastry chef presentation, hyperrealistic texture, clean elegant background, shallow depth of field, 8k resolution.`;
+  const lower = userPrompt.toLocaleLowerCase('tr-TR');
+  const mentionsFlowers =
+    lower.includes('çiçek') ||
+    lower.includes('cicek') ||
+    lower.includes('gül') ||
+    lower.includes('gul') ||
+    lower.includes('papatya') ||
+    lower.includes('orkide') ||
+    lower.includes('floral') ||
+    lower.includes('flower') ||
+    lower.includes('rose') ||
+    lower.includes('blossom') ||
+    lower.includes('şakayık') ||
+    lower.includes('sakayik') ||
+    lower.includes('botanik');
+
+  const flowerConstraint = mentionsFlowers
+    ? ''
+    : ' CRITICAL NEGATIVE CONSTRAINT - NO FLOWERS: Flowers are NOT requested in the prompt. Do NOT add any flowers, sugar flowers, edible roses, floral accents, petals, leaves, or botanical decorations anywhere on or around the cake. The cake surface must remain completely free of flowers.';
+
+  return `Professional high-end gourmet culinary food photography of an exquisite handcrafted cake: ${userPrompt}.${multimodalGuidance} Studio lighting, award-winning pastry chef presentation, hyperrealistic texture, clean elegant background, shallow depth of field, 8k resolution. STRICT FIDELITY RULE: Adhere 100% strictly and exclusively to the user description. Do NOT add any unrequested decorations, unrequested toppings, unrequested pearls, unrequested figurines, or unrequested embellishments. Only depict what is explicitly written in the prompt.${flowerConstraint} KATI KURAL: Yazılanların kesinlikle dışına çıkma; metinde belirtilmeyen hiçbir süsleme, çiçek veya detayı ekleme.`;
 }
 
 /**
@@ -23,7 +48,8 @@ function buildEnhancedPrompt(userPrompt: string, hasReference = false): string {
  */
 async function generateViaBackendProxy(
   prompt: string,
-  referenceImageBase64?: string,
+  referenceImageBase64: string | undefined,
+  quality: ImageQuality,
 ): Promise<GenerateImageResult> {
   const backendBase = ENV.AI_BACKEND_URL.replace(/\/+$/, '');
   const endpoint = `${backendBase}/api/generate-cake`;
@@ -39,6 +65,7 @@ async function generateViaBackendProxy(
         prompt,
         model: ENV.GEMINI_IMAGE_MODEL,
         referenceImageBase64,
+        imageSize: toImageSize(quality),
       }),
     });
 
@@ -82,7 +109,8 @@ async function generateViaBackendProxy(
  */
 async function generateDirectGemini(
   prompt: string,
-  referenceImageBase64?: string,
+  referenceImageBase64: string | undefined,
+  quality: ImageQuality,
 ): Promise<GenerateImageResult> {
   if (__DEV__) {
     console.warn(
@@ -91,7 +119,7 @@ async function generateDirectGemini(
   }
 
   const apiKey = ENV.GEMINI_API_KEY.trim();
-  const model = ENV.GEMINI_IMAGE_MODEL.trim() || 'gemini-3-pro-image';
+  let model = ENV.GEMINI_IMAGE_MODEL.trim() || 'gemini-3.1-flash-image';
   const enhancedPrompt = buildEnhancedPrompt(prompt, Boolean(referenceImageBase64));
 
   try {
@@ -161,7 +189,7 @@ async function generateDirectGemini(
           responseModalities: ['IMAGE'],
           imageConfig: {
             aspectRatio: '3:4',
-            imageSize: '2K',
+            imageSize: toImageSize(quality),
           },
         },
       }),
@@ -213,16 +241,31 @@ const SLO_LATENCY_ALERT_MS = 15000; // 15 saniyeyi aşan üretimlerde SLO uyarı
  *
  * @param prompt Kullanıcının pasta yapılandırıcıdan oluşturduğu detaylı açıklama
  * @param referenceImageBase64 Opsiyonel ilham fotoğrafı (gelinlik, davetiye, konsept)
+ * @param quality 'standard' = 2K, '4k' = 4K çıktı
  */
+import { validatePromptSafety } from '../utils/security';
+
 export async function generateCakeImage(
   prompt: string,
   referenceImageBase64?: string,
+  quality: ImageQuality = ENV.DEFAULT_IMAGE_QUALITY || '4k',
 ): Promise<GenerateImageResult> {
   const startTime = Date.now();
 
+  // İSTEMCİ GÜVENLİK KALKANI: XSS ve Prompt Injection Doğrulaması
+  const promptCheck = validatePromptSafety(prompt);
+  if (!promptCheck.isSafe) {
+    return {
+      success: false,
+      error: 'Güvenlik Uyarısı: Girilen metin sistem güvenlik ilkelerine uygun değildir.',
+    };
+  }
+  const safePrompt = promptCheck.sanitizedText;
+
   addBreadcrumb('ai_generation', 'Pasta görseli üretimi başlatıldı', {
-    promptLength: prompt.length,
+    promptLength: safePrompt.length,
     hasReferenceImage: Boolean(referenceImageBase64),
+    quality,
   });
 
   if (!isGeminiConfigured()) {
@@ -235,9 +278,9 @@ export async function generateCakeImage(
   try {
     let result: GenerateImageResult;
     if (hasAIBackend()) {
-      result = await generateViaBackendProxy(prompt, referenceImageBase64);
+      result = await generateViaBackendProxy(safePrompt, referenceImageBase64, quality);
     } else {
-      result = await generateDirectGemini(prompt, referenceImageBase64);
+      result = await generateDirectGemini(safePrompt, referenceImageBase64, quality);
     }
 
     const durationMs = Date.now() - startTime;

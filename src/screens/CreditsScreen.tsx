@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Platform,
   Pressable,
@@ -10,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,7 +20,9 @@ import {
   ChevronLeftIcon,
   CoinsIcon,
   LockIcon,
+  SparkleIcon,
 } from '../components/Icons';
+import { formatMoney, getPackageValue } from '../utils/packageValue';
 import { FadeInUp, ShineSweep, useCountUp } from '../components/motion';
 import { CREDITS_PER_GENERATION, useCredits } from '../context/CreditsContext';
 import { IAP_PACKAGES, IAPPackage } from '../types/iap';
@@ -44,6 +46,7 @@ export default function CreditsScreen({ onClose }: Props) {
   // In-App Purchases (RevenueCat / StoreKit / Google Play) State'leri
   const [packagesList, setPackagesList] = useState<IAPPackage[]>(IAP_PACKAGES);
   const [purchasingPkgId, setPurchasingPkgId] = useState<string | null>(null);
+  const purchaseInFlightRef = useRef(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [iapSuccessMessage, setIapSuccessMessage] = useState<string | null>(null);
 
@@ -73,6 +76,9 @@ export default function CreditsScreen({ onClose }: Props) {
   };
 
   const handlePurchase = async (pkg: IAPPackage) => {
+    // A ref, not state: a double tap fires twice before React re-renders.
+    if (purchaseInFlightRef.current) return;
+    purchaseInFlightRef.current = true;
     setPurchasingPkgId(pkg.id);
     try {
       const result = await purchaseIAPPackage(pkg);
@@ -87,11 +93,12 @@ export default function CreditsScreen({ onClose }: Props) {
         setIapSuccessMessage(`🎉 ${pkg.credits} Kredi hesabınıza başarıyla eklendi!`);
         setTimeout(() => setIapSuccessMessage(null), 4000);
       } else if (!result.userCancelled && result.error) {
-        Alert.alert('Satın Alma Başarısız', result.error);
+        showAlert('Satın Alma Başarısız', result.error);
       }
     } catch (err: any) {
-      Alert.alert('Hata', err?.message || 'Ödeme tamamlanamadı.');
+      showAlert('Hata', err?.message || 'Ödeme tamamlanamadı.');
     } finally {
+      purchaseInFlightRef.current = false;
       setPurchasingPkgId(null);
     }
   };
@@ -151,24 +158,6 @@ export default function CreditsScreen({ onClose }: Props) {
         {/* Paketler Başlığı */}
         <View style={styles.packagesHeaderRow}>
           <Text style={styles.packagesSectionTitle}>KREDİ YÜKLE</Text>
-          <View style={styles.storeBadgeRow}>
-            {Platform.OS === 'ios' ? (
-              <>
-                <AppleIcon size={12} color={home.muted} />
-                <Text style={styles.storeBadgeText}>StoreKit 2</Text>
-              </>
-            ) : Platform.OS === 'android' ? (
-              <>
-                <LockIcon size={11} color={home.muted} />
-                <Text style={styles.storeBadgeText}>Play Billing</Text>
-              </>
-            ) : (
-              <>
-                <LockIcon size={11} color={home.muted} />
-                <Text style={styles.storeBadgeText}>Güvenli Ödeme</Text>
-              </>
-            )}
-          </View>
         </View>
 
         {/* Başarılı IAP Satın Alma Bildirimi */}
@@ -182,11 +171,12 @@ export default function CreditsScreen({ onClose }: Props) {
         <View style={styles.packagesContainer}>
           {packagesList.map((pkg, idx) => {
             const isBuying = purchasingPkgId === pkg.id;
+            const value = getPackageValue(pkg, packagesList);
             return (
               <FadeInUp key={pkg.id} delay={120 + idx * 90}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`${pkg.credits} Kredi satın al`}
+                  accessibilityLabel={`${pkg.credits} Kredi satın al${value.savingsPct > 0 ? `, yüzde ${value.savingsPct} tasarruf` : ''}`}
                   onPress={() => handlePurchase(pkg)}
                   style={({ pressed }) => [
                     styles.packageCard,
@@ -205,46 +195,52 @@ export default function CreditsScreen({ onClose }: Props) {
                     </View>
                   )}
 
-                  <View style={styles.packageLeft}>
-                    <View style={styles.creditsRow}>
-                      <Text style={styles.packageCredits}>{pkg.credits}</Text>
-                      <Text style={styles.packageCreditsUnit}> Kredi</Text>
-                      {pkg.bonus && (
-                        <View style={styles.bonusTag}>
-                          <Text style={styles.bonusTagText}>+{pkg.bonus} Hediye</Text>
-                        </View>
-                      )}
+                  <View style={styles.packageMain}>
+                    <View style={styles.packageLeft}>
+                      <View style={styles.creditsRow}>
+                        <Text style={styles.packageCredits}>{pkg.credits}</Text>
+                        <Text style={styles.packageCreditsUnit}> Kredi</Text>
+                        {pkg.bonus && (
+                          <View style={styles.bonusTag}>
+                            <Text style={styles.bonusTagText}>+{pkg.bonus} Hediye</Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
-                    <Text style={styles.packageCakes}>
-                      {pkg.cakes} adet stüdyo kalitesinde pasta fotoğrafı
-                    </Text>
+
+                    <View style={styles.packageRight}>
+                      {value.savingsPct > 0 && (
+                        <Text style={styles.referencePrice}>
+                          {formatMoney(value.referencePrice, pkg.currencyCode)}
+                        </Text>
+                      )}
+                      <View
+                        style={[
+                          styles.priceButton,
+                          pkg.popular && styles.priceButtonPopular,
+                        ]}
+                      >
+                        {pkg.popular && <ShineSweep initialDelay={900} interval={3000} />}
+                        {isBuying ? (
+                          <ActivityIndicator size="small" color={pkg.popular ? '#FDF6E9' : home.ink} />
+                        ) : (
+                          <>
+                            <LockIcon size={12} color={pkg.popular ? '#FDF6E9' : home.ink} />
+                            <Text
+                              style={[
+                                styles.priceText,
+                                pkg.popular && styles.priceTextPopular,
+                              ]}
+                            >
+                              {currency === 'TRY' ? pkg.priceTRY : pkg.priceUSD}
+                            </Text>
+                          </>
+                        )}
+                      </View>
+                    </View>
                   </View>
 
-                  <View style={styles.packageRight}>
-                    <View
-                      style={[
-                        styles.priceButton,
-                        pkg.popular && styles.priceButtonPopular,
-                      ]}
-                    >
-                      {pkg.popular && <ShineSweep initialDelay={900} interval={3000} />}
-                      {isBuying ? (
-                        <ActivityIndicator size="small" color={pkg.popular ? '#FDF6E9' : home.ink} />
-                      ) : (
-                        <>
-                          <LockIcon size={12} color={pkg.popular ? '#FDF6E9' : home.ink} />
-                          <Text
-                            style={[
-                              styles.priceText,
-                              pkg.popular && styles.priceTextPopular,
-                            ]}
-                          >
-                            {currency === 'TRY' ? pkg.priceTRY : pkg.priceUSD}
-                          </Text>
-                        </>
-                      )}
-                    </View>
-                  </View>
+
                 </Pressable>
               </FadeInUp>
             );
@@ -260,12 +256,12 @@ export default function CreditsScreen({ onClose }: Props) {
             try {
               const result = await restoreIAPPurchases();
               if (result.success) {
-                Alert.alert(
+                showAlert(
                   'Satın Alımlar Güncellendi',
                   `Mağaza kayıtlarınız doğrulandı. Mevcut bakiyeniz: ${credits} Kredi.`,
                 );
               } else {
-                Alert.alert('Geri Yükleme Hatası', result.error || 'Satın alımlar geri yüklenemedi.');
+                showAlert('Geri Yükleme Hatası', result.error || 'Satın alımlar geri yüklenemedi.');
               }
             } finally {
               setIsRestoring(false);
@@ -453,15 +449,109 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   packageCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     backgroundColor: home.card,
     borderWidth: 1.5,
     borderColor: home.cardBorder,
     borderRadius: 18,
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     position: 'relative',
+  },
+  packageMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  yieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 5,
+  },
+  yieldText: {
+    fontSize: 12.5,
+    color: home.body,
+  },
+  yieldStrong: {
+    fontWeight: '700',
+    color: home.ink,
+  },
+  yield4k: {
+    fontWeight: '800',
+    color: home.gold,
+  },
+  yieldMuted: {
+    fontSize: 12,
+    color: home.muted,
+  },
+  yieldDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: home.muted,
+  },
+  referencePrice: {
+    alignSelf: 'flex-end',
+    marginBottom: 4,
+    marginRight: 6,
+    fontSize: 12,
+    fontWeight: '600',
+    color: home.muted,
+    textDecorationLine: 'line-through',
+  },
+  valueStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: home.divider,
+  },
+  perDesignText: {
+    flexShrink: 1,
+    fontSize: 12,
+    color: home.body,
+  },
+  perDesignStrong: {
+    fontWeight: '700',
+    color: home.ink,
+  },
+  perDesignOld: {
+    color: home.muted,
+    textDecorationLine: 'line-through',
+  },
+  savingsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  savingsText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    color: '#5A3A10',
+  },
+  savingsTextPopular: {
+    color: home.accentGold,
+  },
+  trialText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: home.muted,
+  },
+  savingsNote: {
+    marginTop: -6,
+    marginBottom: 14,
+    marginLeft: 4,
+    fontSize: 11.5,
+    color: home.muted,
   },
   packageCardPopular: {
     borderColor: home.accentGold,
@@ -525,11 +615,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#9C5810',
-  },
-  packageCakes: {
-    fontSize: 12.5,
-    color: home.muted,
-    marginTop: 4,
   },
   packageRight: {
     marginLeft: 12,

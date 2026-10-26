@@ -18,12 +18,15 @@ import { home } from '../theme/theme';
 
 let instanceCount = 0;
 
-/** Box the artwork is fitted into, whatever its own proportions are. */
-const SLOT_MAX_WIDTH = 130;
-const SLOT_MAX_HEIGHT = 168;
+/** Fixed dimensions ensuring all category cards on the home screen have the exact same size. */
+export const CARD_HEIGHT = 198;
+const SLOT_BOX_WIDTH = 140;
+const SLOT_BOX_HEIGHT = 166;
+const DEFAULT_MAX_WIDTH = 138;
+const DEFAULT_MAX_HEIGHT = 160;
 
 type Props = {
-  image: ImageSourcePropType;
+  image: React.ComponentProps<typeof Image>['source'];
   /** Intrinsic height / width of the artwork. */
   aspect: number;
   /** Use \n to control where the two-line button label breaks. */
@@ -32,16 +35,22 @@ type Props = {
   imageAlt: string;
   onPress: () => void;
   style?: ViewStyle;
+  /** Custom uniform height for the card (defaults to CARD_HEIGHT). */
+  cardHeight?: number;
   /**
    * Widens the slot for landscape photos (aspect < 1) so they fill their
-   * box height instead of floating small inside the default 130px width.
-   * Portrait photos are already capped by height first and ignore this.
+   * box height instead of floating small inside the default width.
    */
   maxWidth?: number;
   /**
-   * Overrides the maximum height of the slot (defaults to SLOT_MAX_HEIGHT = 168).
+   * Overrides the maximum height of the slot.
    */
   maxHeight?: number;
+  /** Opsiyonel fiyat/kampanya rozeti (örn: 30$'dan 20$'a indirim) */
+  priceBadge?: {
+    old: string;
+    current: string;
+  };
 };
 
 /** Warm halo that lifts the cake off the card. */
@@ -77,7 +86,8 @@ function ContactShadow({ id, width }: { id: string; width: number }) {
 
 /**
  * Feature card pairing a cake photograph with the call to action that starts
- * that kind of order. Sizes itself around whatever artwork it is handed.
+ * that kind of order. Standardized to a uniform height so every card in the
+ * feed has identical dimensions and visual rhythm.
  */
 export default function CakeFeatureCard({
   image,
@@ -87,8 +97,10 @@ export default function CakeFeatureCard({
   imageAlt,
   onPress,
   style,
-  maxWidth = SLOT_MAX_WIDTH,
-  maxHeight = SLOT_MAX_HEIGHT,
+  cardHeight = CARD_HEIGHT,
+  maxWidth,
+  maxHeight,
+  priceBadge,
 }: Props) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -96,14 +108,19 @@ export default function CakeFeatureCard({
   const index = useMemo(() => (instanceCount += 1), []);
   const uid = `c${index}`;
 
-  // Contain the artwork inside the slot without distorting it.
-  const { width: cakeWidth, height: cakeHeight } = useMemo(() => {
-    const byHeight = maxHeight / aspect;
+  const slotBoxHeight = Math.max(130, cardHeight - 32);
+  const slotBoxWidth = Math.min(146, Math.round(slotBoxHeight * 0.88));
+  const effectiveMaxHeight = Math.min(maxHeight || (slotBoxHeight - 6), slotBoxHeight - 6);
+  const effectiveMaxWidth = Math.min(maxWidth || (slotBoxWidth - 4), slotBoxWidth - 4);
 
-    return byHeight <= maxWidth
-      ? { width: Math.round(byHeight), height: maxHeight }
-      : { width: maxWidth, height: Math.round(maxWidth * aspect) };
-  }, [aspect, maxWidth, maxHeight]);
+  // Contain the artwork inside the uniform slot without distorting it.
+  const { width: cakeWidth, height: cakeHeight } = useMemo(() => {
+    const byHeight = effectiveMaxHeight / aspect;
+
+    return byHeight <= effectiveMaxWidth
+      ? { width: Math.round(byHeight), height: effectiveMaxHeight }
+      : { width: effectiveMaxWidth, height: Math.round(effectiveMaxWidth * aspect) };
+  }, [aspect, effectiveMaxWidth, effectiveMaxHeight]);
 
   const animateTo = (value: number) =>
     Animated.spring(scale, {
@@ -114,7 +131,7 @@ export default function CakeFeatureCard({
     }).start();
 
   return (
-    <View style={[styles.card, style]}>
+    <View style={[styles.card, { height: cardHeight }, style]}>
       <LinearGradient
         colors={[home.cardGradFrom, home.cardGradTo]}
         start={{ x: 0, y: 0 }}
@@ -123,21 +140,23 @@ export default function CakeFeatureCard({
       />
 
       <View style={styles.row}>
-        <View style={[styles.cakeSlot, { width: cakeWidth, height: cakeHeight }]}>
-          <Glow id={`glow-${uid}`} />
-          <ContactShadow id={`floor-${uid}`} width={cakeWidth} />
-          {/* Android does not guarantee paint order for overlapping siblings,
-              so the photo is lifted above the SVG layers explicitly. */}
-          <Float style={styles.cakeLayer} distance={3.5} duration={2800 + (index % 5) * 260} delay={(index % 5) * 180}>
-            <Image
-              source={image}
-              style={{ width: cakeWidth, height: cakeHeight }}
-              contentFit="contain"
-              transition={250}
-              cachePolicy="memory-disk"
-              accessibilityLabel={imageAlt}
-            />
-          </Float>
+        <View style={[styles.slotBox, { width: slotBoxWidth, height: slotBoxHeight }]}>
+          <View style={[styles.cakeSlot, { width: cakeWidth, height: cakeHeight }]}>
+            <Glow id={`glow-${uid}`} />
+            <ContactShadow id={`floor-${uid}`} width={cakeWidth} />
+            {/* Android does not guarantee paint order for overlapping siblings,
+                so the photo is lifted above the SVG layers explicitly. */}
+            <Float style={styles.cakeLayer} distance={3.5} duration={2800 + (index % 5) * 260} delay={(index % 5) * 180}>
+              <Image
+                source={image}
+                style={{ width: cakeWidth, height: cakeHeight }}
+                contentFit="contain"
+                transition={250}
+                cachePolicy="memory-disk"
+                accessibilityLabel={imageAlt}
+              />
+            </Float>
+          </View>
         </View>
 
         <View style={styles.actionSlot}>
@@ -162,6 +181,12 @@ export default function CakeFeatureCard({
                   <ChefHatIcon size={18} color={home.accentGold} />
                 </View>
                 <Text style={styles.ctaLabel}>{label}</Text>
+                {priceBadge && (
+                  <View style={styles.priceBadgeRow}>
+                    <Text style={styles.priceBadgeOld}>{priceBadge.old}</Text>
+                    <Text style={styles.priceBadgeCurrent}>{priceBadge.current}</Text>
+                  </View>
+                )}
               </LinearGradient>
             </Pressable>
           </Animated.View>
@@ -173,6 +198,7 @@ export default function CakeFeatureCard({
 
 const styles = StyleSheet.create({
   card: {
+    height: CARD_HEIGHT,
     borderRadius: 22,
     borderWidth: 1,
     borderColor: home.cardBorderRich,
@@ -185,9 +211,17 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   row: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
+  slotBox: {
+    width: SLOT_BOX_WIDTH,
+    height: SLOT_BOX_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cakeSlot: {
     alignItems: 'center',
@@ -204,16 +238,18 @@ const styles = StyleSheet.create({
   actionSlot: {
     flex: 1,
     marginLeft: 16,
+    justifyContent: 'center',
   },
   ctaHit: {
     borderRadius: 20,
     overflow: 'hidden',
   },
   cta: {
+    minHeight: 126,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: 'rgba(243, 217, 166, 0.32)',
@@ -237,5 +273,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.2,
     color: '#FDF6E9',
+  },
+  priceBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 0.8,
+    borderColor: 'rgba(243, 217, 166, 0.35)',
+  },
+  priceBadgeOld: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'rgba(253, 246, 233, 0.55)',
+    textDecorationLine: 'line-through',
+  },
+  priceBadgeCurrent: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: home.accentGold,
   },
 });

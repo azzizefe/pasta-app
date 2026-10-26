@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import InfoSheet, { sheetStyles } from './InfoSheet';
@@ -51,7 +52,7 @@ export default function ReportIssueSheet({ visible, onClose }: Props) {
       setDescription('');
       onClose();
     } catch {
-      Alert.alert(
+      showAlert(
         'E-posta Uygulaması Açılamadı',
         `Sorununu bize doğrudan ${SUPPORT_EMAIL} adresine yazarak iletebilirsin.`,
       );

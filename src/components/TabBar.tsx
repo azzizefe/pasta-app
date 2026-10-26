@@ -45,6 +45,7 @@ export default function TabBar({ active, onChange }: Props) {
 
   return (
     <View
+      accessibilityRole="tablist"
       style={[styles.bar, { paddingBottom: insets.bottom || 10 }]}
       onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
     >
@@ -78,6 +79,7 @@ export default function TabBar({ active, onChange }: Props) {
             accessibilityRole="tab"
             accessibilityLabel={label}
             accessibilityState={{ selected: isActive }}
+            aria-selected={isActive}
             onPress={() => onChange(key)}
             style={styles.tab}
           >

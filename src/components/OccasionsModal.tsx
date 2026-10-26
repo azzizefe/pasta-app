@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -9,32 +8,102 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useOccasions } from '../context/OccasionsContext';
 import {
+  describeLeadTime,
   getDaysUntilOccasion,
   getNextOccasionDate,
+  getNextReminderDate,
+  getReminderLeadDays,
   OCCASION_TYPE_INFO,
   OccasionType,
+  REMINDER_OPTIONS,
   SpecialOccasion,
 } from '../types/occasion';
-import { CakeKind } from '../types/savedCake';
+import { CakeDetails, CakeKind } from '../types/savedCake';
 import {
   BellIcon,
   CalendarIcon,
   ChefHatIcon,
+  ChevronLeftIcon,
   CloseIcon,
   PlusIcon,
   SparkleIcon,
   TrashIcon,
 } from './Icons';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { fonts, home } from '../theme/theme';
+
+const RING_SIZE = 104;
+const RING_STROKE = 6;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+/** Gold ring that fills as the day approaches: empty a year out, full on the day. */
+function CountdownRing({ daysLeft, children }: { daysLeft: number; children: React.ReactNode }) {
+  const progress = Math.min(1, Math.max(0.03, (365 - daysLeft) / 365));
+  const center = RING_SIZE / 2;
+  return (
+    <View style={ringStyles.wrap}>
+      {/* Rotated on a wrapper (not an SVG group) so the arc starts at 12 o'clock on web too. */}
+      <View style={ringStyles.rotor} pointerEvents="none">
+        <Svg width={RING_SIZE} height={RING_SIZE}>
+          <Defs>
+            <SvgGradient id="occasionRingGold" x1="0" y1="0" x2="1" y2="1">
+              <Stop offset="0" stopColor="#F6E2B8" />
+              <Stop offset="1" stopColor="#C99A4B" />
+            </SvgGradient>
+          </Defs>
+          <Circle
+            cx={center}
+            cy={center}
+            r={RING_RADIUS}
+            stroke="rgba(243, 217, 166, 0.16)"
+            strokeWidth={RING_STROKE}
+            fill="none"
+          />
+          <Circle
+            cx={center}
+            cy={center}
+            r={RING_RADIUS}
+            stroke="url(#occasionRingGold)"
+            strokeWidth={RING_STROKE}
+            strokeLinecap="round"
+            strokeDasharray={RING_CIRCUMFERENCE}
+            strokeDashoffset={RING_CIRCUMFERENCE * (1 - progress)}
+            fill="none"
+          />
+        </Svg>
+      </View>
+      {children}
+    </View>
+  );
+}
+
+const ringStyles = StyleSheet.create({
+  rotor: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    transform: [{ rotate: '-90deg' }],
+  },
+  wrap: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
 
 interface Props {
   visible: boolean;
   onClose: () => void;
-  onOpenBuilder: (kind: CakeKind) => void;
+  onOpenBuilder: (kind: CakeKind, details?: CakeDetails) => void;
 }
 
 const MONTH_NAMES = [
@@ -55,6 +124,26 @@ const MONTH_NAMES = [
 const MONTH_SHORT = ['OCA', 'ŞUB', 'MAR', 'NİS', 'MAY', 'HAZ', 'TEM', 'AĞU', 'EYL', 'EKİ', 'KAS', 'ARA'];
 
 const WEEKDAYS = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
+
+const DAY_PILL_WIDTH = 36;
+const DAY_PILL_GAP = 4;
+
+// Measured against a leap year so 29 Şubat birthdays stay valid.
+function daysInMonth(month: number) {
+  return new Date(2024, month, 0).getDate();
+}
+
+function describeDistance(daysLeft: number) {
+  if (daysLeft === 0) return 'bugün';
+  if (daysLeft === 1) return 'yarın';
+  return `${daysLeft} gün sonra`;
+}
+
+/** "1 Ekim Cuma", with the year only when it is not this year. */
+function formatShortDate(date: Date) {
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]}${sameYear ? '' : ` ${date.getFullYear()}`} ${WEEKDAYS[date.getDay()]}`;
+}
 
 const OCCASION_TYPES: OccasionType[] = [
   'birthday',
@@ -84,14 +173,14 @@ function getCountdownLabel(daysLeft: number) {
   return `${daysLeft} gün`;
 }
 
+
 export default function OccasionsModal({
   visible,
   onClose,
   onOpenBuilder,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const { occasions, upcomingOccasions, addOccasion, deleteOccasion, testNotification } =
-    useOccasions();
+  const { occasions, addOccasion, deleteOccasion } = useOccasions();
 
   const [isAdding, setIsAdding] = useState(false);
   const [personName, setPersonName] = useState('');
@@ -100,10 +189,42 @@ export default function OccasionsModal({
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedDay, setSelectedDay] = useState(15);
   const [notes, setNotes] = useState('');
+  const [reminderDays, setReminderDays] = useState(14);
+  const [dayStripWidth, setDayStripWidth] = useState(0);
+  const dayStripRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const dayStripPlacedRef = useRef(false);
+
+  const monthLength = daysInMonth(selectedMonth);
+  const dayNumbers = Array.from({ length: monthLength }, (_, i) => i + 1);
+  const draftDate = getNextOccasionDate(selectedMonth, selectedDay);
+  const draftDaysLeft = getDaysUntilOccasion(selectedMonth, selectedDay);
+  const draftReminder = getNextReminderDate(selectedMonth, selectedDay, reminderDays);
+  // True when the day is closer than the chosen lead time, so the reminder comes sooner.
+  const reminderShortened =
+    getReminderLeadDays(selectedMonth, selectedDay, draftReminder) < reminderDays;
+  const reminderLabel =
+    REMINDER_OPTIONS.find((o) => o.days === reminderDays)?.label ?? `${reminderDays} gün önce`;
+
+  // Keeps the chosen day centred in the strip: jumps there when the form opens, glides after.
+  useEffect(() => {
+    if (!isAdding || !dayStripWidth) {
+      dayStripPlacedRef.current = false;
+      return;
+    }
+    const x =
+      (selectedDay - 1) * (DAY_PILL_WIDTH + DAY_PILL_GAP) + DAY_PILL_WIDTH / 2 - dayStripWidth / 2;
+    dayStripRef.current?.scrollTo({ x: Math.max(0, x), animated: dayStripPlacedRef.current });
+    dayStripPlacedRef.current = true;
+  }, [isAdding, selectedDay, selectedMonth, dayStripWidth]);
+
+  const handleSelectMonth = (month: number) => {
+    setSelectedMonth(month);
+    setSelectedDay((d) => Math.min(d, daysInMonth(month)));
+  };
 
   const handleSaveOccasion = async () => {
     if (!personName.trim()) {
-      Alert.alert('Eksik Bilgi', 'Lütfen kişi adını giriniz.');
+      showAlert('Eksik Bilgi', 'Lütfen kişi adını giriniz.');
       return;
     }
 
@@ -116,37 +237,27 @@ export default function OccasionsModal({
       day: selectedDay,
       type: selectedType,
       notes: notes.trim() || undefined,
-      reminderDaysBefore: 14,
+      reminderDaysBefore: reminderDays,
     });
+
+    const reminderAt = `${formatShortDate(draftReminder)} sabah 10:00'da`;
+    const reminderText = reminderShortened
+      ? `Özel gün yakın olduğu için ilk bildirim ${reminderAt} gelecek.`
+      : reminderDays === 0
+        ? `Özel günün sabahı, ${reminderAt} bildirim gelecek.`
+        : `Özel günden ${describeLeadTime(reminderDays)} önce, ${reminderAt} bildirim gelecek.`;
 
     setIsAdding(false);
     setPersonName('');
     setRelationship('');
     setNotes('');
+    setReminderDays(14);
 
-    Alert.alert(
-      'Hatırlatıcı Kuruldu ✨',
-      `Tarihten tam 14 gün önce (2 hafta kala) sabah 10:00'da özel bildiriminiz gönderilecektir.`
-    );
-  };
-
-  const handleSendTest = async () => {
-    const success = await testNotification(personName.trim() || 'Zeynep');
-    if (success) {
-      Alert.alert(
-        'Test Bildirimi Gönderildi 🔔',
-        '2 saniye içinde ekranınızda 2 hafta öncesi hatırlatma bildirimini göreceksiniz.'
-      );
-    } else {
-      Alert.alert(
-        'Bildirim İzni Gerekli',
-        'Bildirim gönderebilmek için lütfen cihazınızın ayarlarından uygulamaya bildirim izni verin.'
-      );
-    }
+    showAlert('Hatırlatıcı Kuruldu ✨', reminderText);
   };
 
   const handleDelete = (occasion: SpecialOccasion) => {
-    Alert.alert(
+    showAlert(
       'Hatırlatıcıyı Sil',
       `"${occasion.title}" hatırlatıcısını silmek istediğinize emin misiniz?`,
       [
@@ -160,9 +271,13 @@ export default function OccasionsModal({
     );
   };
 
+  // Carries the person's saved preferences into the builder so the design starts from them.
   const handleDesign = (occasion: SpecialOccasion) => {
     onClose();
-    onOpenBuilder(OCCASION_TYPE_INFO[occasion.type].defaultKind);
+    onOpenBuilder(
+      OCCASION_TYPE_INFO[occasion.type].defaultKind,
+      occasion.notes ? { customNotes: occasion.notes } : undefined,
+    );
   };
 
   // occasions is already sorted nearest-first by the context.
@@ -172,7 +287,6 @@ export default function OccasionsModal({
     const typeInfo = OCCASION_TYPE_INFO[occasion.type];
     const daysLeft = getDaysUntilOccasion(occasion.month, occasion.day);
     const nextDate = getNextOccasionDate(occasion.month, occasion.day);
-    const progress = Math.min(1, Math.max(0.04, (365 - daysLeft) / 365));
 
     return (
       <LinearGradient
@@ -201,7 +315,7 @@ export default function OccasionsModal({
         </View>
 
         <View style={styles.spotlightBody}>
-          <View style={styles.countdownTile}>
+          <CountdownRing daysLeft={daysLeft}>
             {daysLeft <= 1 ? (
               <Text style={styles.countdownTileToday}>{getCountdownLabel(daysLeft)}</Text>
             ) : (
@@ -210,7 +324,7 @@ export default function OccasionsModal({
                 <Text style={styles.countdownTileLabel}>GÜN KALDI</Text>
               </>
             )}
-          </View>
+          </CountdownRing>
 
           <View style={styles.spotlightInfo}>
             <Text style={styles.spotlightName} numberOfLines={1}>
@@ -222,15 +336,6 @@ export default function OccasionsModal({
             </Text>
             <Text style={styles.spotlightDate}>{formatLongDate(nextDate)}</Text>
           </View>
-        </View>
-
-        <View style={styles.progressTrack}>
-          <LinearGradient
-            colors={['#E9C27F', GOLD]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.progressFill, { width: `${progress * 100}%` }]}
-          />
         </View>
 
         {occasion.notes && (
@@ -291,7 +396,7 @@ export default function OccasionsModal({
               {typeInfo.label} · {WEEKDAYS[nextDate.getDay()]}
             </Text>
             <View style={styles.reminderLine}>
-              <BellIcon size={12} color={isVerySoon ? '#C2410C' : home.muted} />
+              <BellIcon size={12} color={isVerySoon ? '#C2410C' : home.body} />
               <Text style={[styles.reminderText, isVerySoon && styles.reminderTextSoon]}>
                 {getReminderLabel(occasion, daysLeft, nextDate)}
               </Text>
@@ -341,7 +446,8 @@ export default function OccasionsModal({
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      presentationStyle="fullScreen"
+      statusBarTranslucent
       onRequestClose={onClose}
     >
       <View style={styles.root}>
@@ -355,22 +461,17 @@ export default function OccasionsModal({
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Kapat"
+            accessibilityLabel="Geri"
             onPress={onClose}
             hitSlop={10}
             style={styles.circleBtn}
           >
-            <CloseIcon size={20} color={home.ink} />
+            <ChevronLeftIcon size={20} color={home.ink} strokeWidth={2} />
           </Pressable>
 
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle} numberOfLines={1}>
               Özel Gün Takvimi
-            </Text>
-            <Text style={styles.headerSubtitle} numberOfLines={1}>
-              {occasions.length === 0
-                ? 'Sevdiklerinin günlerini kaçırma'
-                : `${occasions.length} özel gün · ${upcomingOccasions.length} yaklaşan`}
             </Text>
           </View>
 
@@ -407,7 +508,7 @@ export default function OccasionsModal({
                 </View>
                 <View>
                   <Text style={styles.formTitle}>Yeni Özel Gün</Text>
-                  <Text style={styles.formSubtitle}>14 gün önceden hatırlatılırsın</Text>
+                  <Text style={styles.formSubtitle}>{reminderLabel} hatırlatılırsın</Text>
                 </View>
               </View>
 
@@ -449,7 +550,6 @@ export default function OccasionsModal({
                         onPress={() => setSelectedType(t)}
                         style={[styles.chip, isActive && styles.chipActive]}
                       >
-                        <Text style={styles.typeIcon}>{info.icon}</Text>
                         <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
                           {info.label}
                         </Text>
@@ -460,46 +560,115 @@ export default function OccasionsModal({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Ay</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.chipRow}
-                >
-                  {MONTH_NAMES.map((name, idx) => {
-                    const mNum = idx + 1;
-                    const isSel = selectedMonth === mNum;
+                <Text style={styles.inputLabel}>Tarih</Text>
+                <View style={styles.dateCard}>
+                  <View style={styles.optionGrid}>
+                    {[0, 6].map((rowStart) => (
+                      <View key={rowStart} style={styles.optionRow}>
+                        {MONTH_NAMES.slice(rowStart, rowStart + 6).map((name, i) => {
+                          const mNum = rowStart + i + 1;
+                          const isSel = selectedMonth === mNum;
+                          return (
+                            <Pressable
+                              key={name}
+                              accessibilityRole="button"
+                              accessibilityLabel={name}
+                              accessibilityState={{ selected: isSel }}
+                              onPress={() => handleSelectMonth(mNum)}
+                              style={({ pressed }) => [
+                                styles.optionCell,
+                                isSel && styles.optionCellActive,
+                                pressed && styles.pressed,
+                              ]}
+                            >
+                              <Text style={[styles.optionText, isSel && styles.optionTextActive]}>
+                                {name.slice(0, 3)}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+                    ))}
+                  </View>
+
+                  <View style={styles.dateDivider} />
+
+                  <ScrollView
+                    ref={dayStripRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.dayStrip}
+                    onLayout={(e) => setDayStripWidth(e.nativeEvent.layout.width)}
+                  >
+                    {dayNumbers.map((d) => {
+                      const isSel = selectedDay === d;
+                      const weekday = getNextOccasionDate(selectedMonth, d).getDay();
+                      return (
+                        <Pressable
+                          key={d}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${d} ${MONTH_NAMES[selectedMonth - 1]}, ${WEEKDAYS[weekday]}`}
+                          accessibilityState={{ selected: isSel }}
+                          onPress={() => setSelectedDay(d)}
+                          style={({ pressed }) => [
+                            styles.dayPill,
+                            isSel && styles.dayPillActive,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text style={[styles.dayPillNumber, isSel && styles.dayPillNumberActive]}>
+                            {d}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+
+                  <View style={styles.dateSummary}>
+                    <CalendarIcon size={15} color={home.gold} />
+                    <Text style={styles.dateSummaryText} numberOfLines={1}>
+                      <Text style={styles.dateSummaryStrong}>
+                        {formatShortDate(draftDate)}
+                      </Text>
+                      {` · ${describeDistance(draftDaysLeft)}`}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Kaç gün önce hatırlatalım?</Text>
+                <View style={styles.segmented}>
+                  {REMINDER_OPTIONS.map((opt) => {
+                    const isSel = reminderDays === opt.days;
                     return (
                       <Pressable
-                        key={name}
-                        onPress={() => setSelectedMonth(mNum)}
-                        style={[styles.chip, isSel && styles.chipActive]}
+                        key={opt.days}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Hatırlatma: ${opt.label}`}
+                        accessibilityState={{ selected: isSel }}
+                        onPress={() => setReminderDays(opt.days)}
+                        style={({ pressed }) => [
+                          styles.optionCell,
+                          isSel && styles.optionCellActive,
+                          pressed && styles.pressed,
+                        ]}
                       >
-                        <Text style={[styles.chipText, isSel && styles.chipTextActive]}>
-                          {name}
+                        <Text
+                          style={[styles.optionText, isSel && styles.optionTextActive]}
+                          numberOfLines={1}
+                        >
+                          {opt.short}
                         </Text>
                       </Pressable>
                     );
                   })}
-                </ScrollView>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Gün (1-31)</Text>
-                <TextInput
-                  style={[styles.input, styles.dayInput]}
-                  keyboardType="number-pad"
-                  maxLength={2}
-                  value={String(selectedDay)}
-                  onChangeText={(t) => {
-                    const num = parseInt(t.replace(/[^0-9]/g, ''), 10);
-                    if (!isNaN(num) && num >= 1 && num <= 31) {
-                      setSelectedDay(num);
-                    } else if (t === '') {
-                      setSelectedDay(1);
-                    }
-                  }}
-                />
+                </View>
+                {reminderShortened && (
+                  <Text style={styles.reminderHint}>
+                    Özel gün seçtiğin süreden daha yakın; seni en yakın sabah hatırlatırız.
+                  </Text>
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -544,7 +713,7 @@ export default function OccasionsModal({
               <Text style={styles.emptyTitle}>Henüz özel gün yok</Text>
               <Text style={styles.emptyText}>
                 Sevdiklerinin doğum günlerini ve yıl dönümlerini ekle, sürpriz pastanı
-                hazırlaman için 2 hafta önceden hatırlatalım.
+                hazırlaman için önceden hatırlatalım.
               </Text>
               {!isAdding && (
                 <Pressable
@@ -572,25 +741,6 @@ export default function OccasionsModal({
               )}
             </>
           )}
-
-          {/* Bildirim Bilgi Şeridi */}
-          <View style={styles.infoStrip}>
-            <View style={styles.infoIconRing}>
-              <BellIcon size={16} color={home.gold} />
-            </View>
-            <Text style={styles.infoText}>
-              Her özel günden <Text style={styles.infoTextBold}>14 gün önce</Text> sabah
-              10:00'da hatırlatılırsın.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={handleSendTest}
-              hitSlop={6}
-              style={({ pressed }) => [styles.testBtn, pressed && styles.pressed]}
-            >
-              <Text style={styles.testBtnText}>Test Et</Text>
-            </Pressable>
-          </View>
         </ScrollView>
       </View>
     </Modal>
@@ -625,12 +775,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: home.ink,
     letterSpacing: 0.2,
-  },
-  headerSubtitle: {
-    marginTop: 2,
-    fontSize: 12,
-    color: home.muted,
-    fontWeight: '500',
   },
   circleBtn: {
     width: 40,
@@ -725,20 +869,10 @@ const styles = StyleSheet.create({
     gap: 16,
     marginTop: 16,
   },
-  countdownTile: {
-    width: 92,
-    height: 92,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(243, 217, 166, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(243, 217, 166, 0.35)',
-  },
   countdownTileNumber: {
     fontFamily: fonts.display,
-    fontSize: 40,
-    lineHeight: 46,
+    fontSize: 36,
+    lineHeight: 40,
     color: GOLD,
   },
   countdownTileLabel: {
@@ -771,17 +905,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12.5,
     color: 'rgba(255, 253, 249, 0.6)',
-  },
-  progressTrack: {
-    height: 6,
-    borderRadius: 3,
-    marginTop: 18,
-    backgroundColor: 'rgba(255, 253, 249, 0.12)',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
   },
   spotlightNotes: {
     marginTop: 14,
@@ -927,8 +1050,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   reminderText: {
-    fontSize: 11.5,
-    color: home.muted,
+    fontSize: 12,
+    color: home.body,
     fontWeight: '500',
   },
   reminderTextSoon: {
@@ -999,50 +1122,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(181, 67, 58, 0.18)',
-  },
-
-  // Info strip
-  infoStrip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 8,
-    padding: 12,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
-    borderWidth: 1,
-    borderColor: 'rgba(216, 196, 168, 0.45)',
-  },
-  infoIconRing: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(243, 217, 166, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 17,
-    color: home.body,
-  },
-  infoTextBold: {
-    fontWeight: '700',
-    color: home.ink,
-  },
-  testBtn: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: home.card,
-    borderWidth: 1,
-    borderColor: home.cardBorderRich,
-  },
-  testBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: home.ink,
   },
 
   // Empty state
@@ -1151,12 +1230,120 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: home.ink,
   },
-  dayInput: {
-    width: 90,
-    textAlign: 'center',
-  },
   notesInput: {
     minHeight: 70,
+  },
+  dateCard: {
+    backgroundColor: 'rgba(247, 243, 237, 0.75)',
+    borderRadius: 16,
+    padding: 6,
+  },
+  optionGrid: {
+    gap: 2,
+  },
+  optionRow: {
+    flexDirection: 'row',
+    gap: 2,
+  },
+  optionCell: {
+    flex: 1,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionCellActive: {
+    backgroundColor: home.ctaFrom,
+    borderColor: home.ctaFrom,
+  },
+  optionText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: home.body,
+  },
+  optionTextActive: {
+    color: CREAM,
+    fontWeight: '700',
+  },
+  segmented: {
+    flexDirection: 'row',
+    gap: 2,
+    padding: 4,
+    borderRadius: 14,
+    backgroundColor: 'rgba(247, 243, 237, 0.75)',
+  },
+  dateDivider: {
+    height: 1,
+    backgroundColor: 'rgba(216, 196, 168, 0.4)',
+    marginVertical: 6,
+    marginHorizontal: 6,
+  },
+  dayStrip: {
+    gap: DAY_PILL_GAP,
+    paddingVertical: 2,
+  },
+  dayPill: {
+    width: DAY_PILL_WIDTH,
+    height: DAY_PILL_WIDTH,
+    borderRadius: DAY_PILL_WIDTH / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayPillActive: {
+    backgroundColor: home.ctaFrom,
+    borderColor: home.ctaFrom,
+  },
+  dayPillNumber: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: home.body,
+  },
+  dayPillNumberActive: {
+    color: CREAM,
+    fontWeight: '700',
+  },
+  dateSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingBottom: 4,
+  },
+  dateSummaryText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: home.body,
+  },
+  dateSummaryStrong: {
+    fontWeight: '700',
+    color: home.ink,
+  },
+  reminderPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(243, 217, 166, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(201, 154, 75, 0.25)',
+  },
+  reminderPreviewText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: home.body,
+  },
+  reminderPreviewStrong: {
+    fontWeight: '700',
+    color: home.ink,
+  },
+  reminderHint: {
+    marginTop: 6,
+    fontSize: 11.5,
+    color: home.muted,
   },
   chipRow: {
     flexDirection: 'row',
@@ -1177,9 +1364,6 @@ const styles = StyleSheet.create({
   chipActive: {
     backgroundColor: home.ctaFrom,
     borderColor: home.ctaFrom,
-  },
-  typeIcon: {
-    fontSize: 15,
   },
   chipText: {
     fontSize: 12.5,

@@ -1,0 +1,13 @@
+{
+  "name": "lumiere-sucree-ai-backend",
+  "version": "1.0.0",
+  "description": "Lumière Sucrée AI Proxy Server",
+  "main": "express-server.js",
+  "scripts": {
+    "start": "node express-server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
