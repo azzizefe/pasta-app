@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Met Lumière Sucrée kies je uitnodigings- of inspiratiefoto’s voor je taartontwerpen.",
+    "NSPhotoLibraryAddUsageDescription": "Toestemming is nodig om de taartontwerpen die je maakt in hoge resolutie in je fotobibliotheek te bewaren.",
+    "NSCameraUsageDescription": "Maak een foto van de details die je inspireren voor je speciale dag en maak er een taartontwerp van."
+  }
+}

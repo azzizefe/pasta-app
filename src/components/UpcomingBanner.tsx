@@ -9,6 +9,8 @@ import {
 import { ChefHatIcon, CloseIcon } from './Icons';
 import { CakeKind } from '../types/savedCake';
 import { home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 interface Props {
   occasion: SpecialOccasion;
@@ -21,6 +23,7 @@ export default function UpcomingBanner({
   onOpenBuilder,
   onOpenCalendar,
 }: Props) {
+  useTx();
   const [dismissed, setDismissed] = useState(false);
 
   if (dismissed) return null;
@@ -30,10 +33,10 @@ export default function UpcomingBanner({
 
   const daysText =
     daysLeft === 0
-      ? 'Bugün!'
+      ? tx("Bugün!")
       : daysLeft === 1
-      ? 'Yarın!'
-      : `${daysLeft} gün kaldı`;
+      ? tx("Yarın!")
+      : tx("{daysLeft} gün kaldı", { daysLeft });
 
   return (
     <View style={styles.container}>
@@ -44,48 +47,45 @@ export default function UpcomingBanner({
         style={StyleSheet.absoluteFill}
       />
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={onOpenCalendar}
-        style={styles.inner}
-      >
-        <View style={styles.leftIcon}>
-          <Text style={styles.emoji}>{typeInfo.icon}</Text>
-        </View>
-
-        <View style={styles.content}>
-          <View style={styles.headerRow}>
-            <Text style={styles.badge}>{daysText}</Text>
-            <Text style={styles.dateLabel}>2 Hafta Öncesi Hatırlatma</Text>
+      {/* The buttons sit beside the calendar area, not inside it: a button can't contain buttons. */}
+      <View style={styles.inner}>
+        <Pressable accessibilityRole="button" onPress={onOpenCalendar} style={styles.calendarArea}>
+          <View style={styles.leftIcon}>
+            <Text style={styles.emoji}>{typeInfo.icon}</Text>
           </View>
-          <Text style={styles.title} numberOfLines={1}>
-            {occasion.personName} • {typeInfo.label}
-          </Text>
-          <Text style={styles.subtitle}>
-            Sürpriz pasta tasarımını şimdiden hazırlayın ✨
-          </Text>
-        </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Tasarla"
-          onPress={() => onOpenBuilder(typeInfo.defaultKind)}
-          style={styles.ctaBtn}
-        >
-          <ChefHatIcon size={14} color="#FFFDF9" />
-          <Text style={styles.ctaBtnText}>Tasarla</Text>
+          <View style={styles.content}>
+            <View style={styles.headerRow}>
+              <Text style={styles.badge}>{daysText}</Text>
+              <Text style={styles.dateLabel}>{tx("2 Hafta Öncesi Hatırlatma")}</Text>
+            </View>
+            <Text style={styles.title} numberOfLines={1}>
+              {occasion.personName} • {tx(typeInfo.label)}
+            </Text>
+            <Text style={styles.subtitle}>{tx("Sürpriz pasta tasarımını şimdiden hazırlayın ✨")}</Text>
+          </View>
         </Pressable>
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Kapat"
+          accessibilityLabel={tx("Tasarla")}
+          onPress={() => onOpenBuilder(typeInfo.defaultKind)}
+          style={styles.ctaBtn}
+        >
+          <ChefHatIcon size={14} color="#FFFDF9" />
+          <Text style={styles.ctaBtnText}>{tx("Tasarla")}</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={tx("Kapat")}
           onPress={() => setDismissed(true)}
           hitSlop={8}
           style={styles.closeBtn}
         >
           <CloseIcon size={14} color={home.muted} />
         </Pressable>
-      </Pressable>
+      </View>
     </View>
   );
 }
@@ -108,6 +108,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 14,
+    gap: 11,
+  },
+  calendarArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 11,
   },
   leftIcon: {

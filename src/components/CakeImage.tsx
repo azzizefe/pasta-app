@@ -13,6 +13,7 @@ export interface CakeImageProps extends Omit<ImageProps, 'placeholder'> {
   showShimmer?: boolean;
   blurhash?: string;
   borderRadius?: number;
+  backgroundColor?: string;
 }
 
 /**
@@ -35,6 +36,7 @@ export default function CakeImage({
   showShimmer = true,
   blurhash = CAKE_BLURHASH,
   borderRadius = 0,
+  backgroundColor,
   onLoadStart,
   onLoadEnd,
   ...rest
@@ -42,7 +44,7 @@ export default function CakeImage({
   const [isLoading, setIsLoading] = useState(true);
 
   return (
-    <View style={[styles.wrapper, { borderRadius }, style]}>
+    <View style={[styles.wrapper, { borderRadius }, backgroundColor ? { backgroundColor } : null, style]}>
       <Image
         source={source}
         style={[StyleSheet.absoluteFill, { borderRadius }]}

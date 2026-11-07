@@ -1,4 +1,5 @@
 import { BudgetTier } from '../types/savedCake';
+import { tx } from '../i18n/tx';
 
 export interface CurrencyConfig {
   code: string;
@@ -156,9 +157,9 @@ export function evaluateBudget(
       totalWeightKg: Math.round((validGuests * 130) / 100) / 10,
       badgeLabel: 'Standart Butik',
       badgeStatus: 'info',
-      message: `${validGuests} kişilik özel pasta için tavsiye edilen piyasa tabanı: ${minRecommended.toLocaleString()} ${currency.symbol}`,
+      message: tx("{validGuests} kişilik özel pasta için tavsiye edilen piyasa tabanı: {p1} {symbol}", { validGuests, p1: minRecommended.toLocaleString(), symbol: currency.symbol }),
       promptDirective: 'Balanced boutique pastry standard, realistic dimensions and elegant gourmet presentation.',
-      pastryAdvice: 'Standart butik pastacılık porsiyonu (~130g/kişi) ve taze kaliteli malzemeler.',
+      pastryAdvice: tx("Standart butik pastacılık porsiyonu (~130g/kişi) ve taze kaliteli malzemeler."),
     };
   }
 
@@ -167,7 +168,7 @@ export function evaluateBudget(
 
   let tier: BudgetTier = 'standard';
   let portionWeightGr = 130;
-  let badgeLabel = 'İdeal Butik Standart';
+  let badgeLabel = tx("İdeal Butik Standart");
   let badgeStatus: 'warning' | 'info' | 'success' | 'gold' = 'success';
   let message = '';
   let promptDirective = '';
@@ -176,35 +177,35 @@ export function evaluateBudget(
   if (budgetNum < minRecommended) {
     tier = 'under_minimum';
     portionWeightGr = 90;
-    badgeLabel = 'Tabanın Altında (Kompakt)';
+    badgeLabel = tx("Tabanın Altında (Kompakt)");
     badgeStatus = 'warning';
-    message = `Belirtilen bütçe (${budgetNum.toLocaleString()} ${currency.symbol}), ${validGuests} kişilik butik pasta asgari piyasa tabanının (${minRecommended.toLocaleString()} ${currency.symbol}) altındadır. Yapay zeka tasarımı kompakt porsiyon (~90g/kişi) ve akıllı maliyetli süslemelerle optimize edecektir.`;
+    message = tx("Belirtilen bütçe ({p0} {symbol}), {validGuests} kişilik butik pasta asgari piyasa tabanının ({p3} {p4}) altındadır. Yapay zeka tasarımı kompakt porsiyon (~90g/kişi) ve akıllı maliyetli süslemelerle optimize edecektir.", { p0: budgetNum.toLocaleString(), symbol: currency.symbol, validGuests, p3: minRecommended.toLocaleString(), p4: currency.symbol });
     promptDirective = `Budget constraint notice: Economic compact size optimization (~90g per serving). Focus on minimalist, refined styling, clean buttercream brushstrokes rather than heavy expensive sugar sculptures. Realistic compact boutique scale.`;
-    pastryAdvice = `Bütçe piyasa tabanının altında olduğu için porsiyon gramajı kompakt (~90g/kişi) tutulmalı; pahalı ithal malzemeler yerine yerli taze meyveler, çok katlı talep varsa üst kat maket (strafor dummy) olarak tasarlanmalıdır.`;
+    pastryAdvice = tx("Bütçe piyasa tabanının altında olduğu için porsiyon gramajı kompakt (~90g/kişi) tutulmalı; pahalı ithal malzemeler yerine yerli taze meyveler, çok katlı talep varsa üst kat maket (strafor dummy) olarak tasarlanmalıdır.");
   } else if (budgetNum >= luxuryThreshold) {
     tier = 'luxury';
     portionWeightGr = 175;
-    badgeLabel = 'Haute Pâtisserie (Ultra Lüks)';
+    badgeLabel = tx("Haute Pâtisserie (Ultra Lüks)");
     badgeStatus = 'gold';
-    message = `Cömert bütçe (${budgetNum.toLocaleString()} ${currency.symbol} · ${perGuest.toLocaleString()} ${currency.symbol}/kişi). Yapay zeka en üst seviye lüks detaylar, saf Belçika kuvertürü ve zengin porsiyon (~175g/kişi) uygulayacaktır.`;
+    message = tx("Cömert bütçe ({p0} {symbol} · {p2} {p3}/kişi). Yapay zeka en üst seviye lüks detaylar, saf Belçika kuvertürü ve zengin porsiyon (~175g/kişi) uygulayacaktır.", { p0: budgetNum.toLocaleString(), symbol: currency.symbol, p2: perGuest.toLocaleString(), p3: currency.symbol });
     promptDirective = `Ultra-luxury haute pâtisserie budget tier. Opulent presentation, generous gourmet scale (~175g per serving), authentic 24k edible gold leaf accents, intricate handcrafted sugar florals, high-end satin ganache finish, grand masterclass craftsmanship.`;
-    pastryAdvice = `Lüks bütçe seviyesi: Saf Belçika kuvertürü, Bourbon vanilyası, taze orman meyveleri, el yapımı şeker çiçekler ve yenilebilir 24K altın varaklar ile sınırsız sanat eseri sunumu.`;
+    pastryAdvice = tx("Lüks bütçe seviyesi: Saf Belçika kuvertürü, Bourbon vanilyası, taze orman meyveleri, el yapımı şeker çiçekler ve yenilebilir 24K altın varaklar ile sınırsız sanat eseri sunumu.");
   } else if (budgetNum >= minRecommended * 1.35) {
     tier = 'standard';
     portionWeightGr = 135;
-    badgeLabel = 'İdeal Butik Standart';
+    badgeLabel = tx("İdeal Butik Standart");
     badgeStatus = 'success';
-    message = `Dengeli ve ideal bütçe (${budgetNum.toLocaleString()} ${currency.symbol} · ${perGuest.toLocaleString()} ${currency.symbol}/kişi). Kusursuz lezzet ve standart porsiyon (~135g/kişi).`;
+    message = tx("Dengeli ve ideal bütçe ({p0} {symbol} · {p2} {p3}/kişi). Kusursuz lezzet ve standart porsiyon (~135g/kişi).", { p0: budgetNum.toLocaleString(), symbol: currency.symbol, p2: perGuest.toLocaleString(), p3: currency.symbol });
     promptDirective = `Refined boutique standard tier. High quality artisanal pastry look, well-balanced portioning (~135g per serving), silky Swiss meringue buttercream, elegant modern textures.`;
-    pastryAdvice = `İdeal butik seviyesi: İsviçre mereng kreması, doğal meyve dolguları ve dengeli el işçiliği süslemeler.`;
+    pastryAdvice = tx("İdeal butik seviyesi: İsviçre mereng kreması, doğal meyve dolguları ve dengeli el işçiliği süslemeler.");
   } else {
     tier = 'economic';
     portionWeightGr = 110;
-    badgeLabel = 'Ekonomik & Akıllı Denge';
+    badgeLabel = tx("Ekonomik & Akıllı Denge");
     badgeStatus = 'info';
-    message = `Akıllı bütçe seviyesi (${budgetNum.toLocaleString()} ${currency.symbol} · ${perGuest.toLocaleString()} ${currency.symbol}/kişi). Kompakt porsiyon (~110g/kişi) ve gösterişli uygun maliyetli dokular.`;
+    message = tx("Akıllı bütçe seviyesi ({p0} {symbol} · {p2} {p3}/kişi). Kompakt porsiyon (~110g/kişi) ve gösterişli uygun maliyetli dokular.", { p0: budgetNum.toLocaleString(), symbol: currency.symbol, p2: perGuest.toLocaleString(), p3: currency.symbol });
     promptDirective = `Smart economic boutique tier. Elegant modern styling, compact portioning (~110g per serving), stylish wafer paper and buttercream accents, avoiding excessive heavy fondant.`;
-    pastryAdvice = `Ekonomik butik seviyesi: Kompakt porsiyonlama (~110g/kişi), wafer paper dokunuşları ve hafifletilmiş hafif kremalar ile maliyet koruması.`;
+    pastryAdvice = tx("Ekonomik butik seviyesi: Kompakt porsiyonlama (~110g/kişi), wafer paper dokunuşları ve hafifletilmiş hafif kremalar ile maliyet koruması.");
   }
 
   const totalWeightKg = Math.round((validGuests * portionWeightGr) / 100) / 10;

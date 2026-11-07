@@ -1,5 +1,6 @@
 import { CREDITS_PER_GENERATION, CREDITS_PER_GENERATION_4K } from '../context/CreditsContext';
 import type { IAPPackage } from '../types/iap';
+import { getTxLocale } from '../i18n/tx';
 
 export type PackageValue = {
   /** Whole-percent saving versus buying the same credits at the most expensive per-credit rate (floored, never overstated). */
@@ -40,7 +41,7 @@ export function getPackageValue(pkg: IAPPackage, packages: IAPPackage[]): Packag
 
 export function formatMoney(value: number, currencyCode: string) {
   try {
-    return new Intl.NumberFormat(currencyCode === 'TRY' ? 'tr-TR' : 'en-US', {
+    return new Intl.NumberFormat(getTxLocale(), {
       style: 'currency',
       currency: currencyCode,
     }).format(value);

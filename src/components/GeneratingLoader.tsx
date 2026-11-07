@@ -5,6 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ChefHatIcon, SparkleIcon } from './Icons';
 import { NATIVE } from './motion';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 const STEPS = [
   'Organik yumurta ve vanilya köpürtülüyor',
@@ -43,6 +45,7 @@ type Props = {
 
 /** Cinematic "your cake is being rendered" state with pulsing rings and live status. */
 export default function GeneratingLoader({ children }: Props) {
+  useTx();
   const ringA = useLoop(2400, EASE_OUT);
   const ringB = useLoop(2400, EASE_OUT, 1200);
   const spin = useLoop(7000);
@@ -88,8 +91,8 @@ export default function GeneratingLoader({ children }: Props) {
         </LinearGradient>
       </View>
 
-      <Text style={styles.title}>Pastan fırında yükseliyor</Text>
-      <Animated.Text style={[styles.step, { opacity: stepOpacity }]}>{STEPS[step]}…</Animated.Text>
+      <Text style={styles.title}>{tx("Pastan fırında yükseliyor")}</Text>
+      <Animated.Text style={[styles.step, { opacity: stepOpacity }]}>{tx(STEPS[step])}…</Animated.Text>
 
       <View style={styles.track}>
         <Animated.View

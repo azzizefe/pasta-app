@@ -6,60 +6,56 @@
  * 2. Mobil istemci derlendiğinde bu anahtarlar hiçbir şekilde ortaya çıkmaz.
  */
 
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
+// Sunucu Nginx arkasında çalışır: gerçek istemci IP'si sadece aynı makinedeki
+// Nginx'in eklediği başlıktan okunur (istemcinin uydurduğu başlıklara güvenilmez).
+app.set('trust proxy', 'loopback');
+app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 3000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// Model ve token sınırı sunucuda seçilir (/etc/lumiere-api.env). Uygulamanın gönderdiği
+// model dikkate alınmaz; böylece model değiştirmek için uygulama güncellemesi gerekmez.
+const IMAGE_MODEL_SETTING = process.env.GEMINI_IMAGE_MODEL;
+const RECIPE_MODEL_SETTING = process.env.GEMINI_RECIPE_MODEL;
+const RECIPE_MAX_TOKENS_SETTING = process.env.GEMINI_RECIPE_MAX_TOKENS;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const REVENUECAT_WEBHOOK_SECRET = process.env.REVENUECAT_WEBHOOK_SECRET;
 
 // ==========================================
-// PROMPT INJECTION & XSS SHIELD MIDDLEWARE
+// PROMPT INJECTION KORUMASI (ayrıntılar: prompt-guard.js)
 // ==========================================
-const SUSPICIOUS_PROMPT_PATTERNS = [
-  /ignore\s+(all\s+)?(previous|prior|above)\s+instructions/i,
-  /disregard\s+(all\s+)?(previous|prior|above)\s+instructions/i,
-  /system\s+prompt/i,
-  /reveal\s+(your\s+)?(api[_\s-]?key|secret|system\s+instructions)/i,
-  /print\s+(your\s+)?(api[_\s-]?key|secret)/i,
-  /jailbreak/i,
-  /dan\s+mode/i,
-  /tüm\s+talimatlar[ıi]\s+unut/i,
-  /sistem\s+talimatlar[ıi]n[ıi]\s+yaz/i,
-  /api\s+anahtar[ıi]n[ıi]\s+(ver|yaz|göster)/i,
-];
+const {
+  DEFAULT_IMAGE_MODEL,
+  DEFAULT_RECIPE_MODEL,
+  guardText,
+  guardCakeDetails,
+  configuredModel,
+  resolveMaxTokens,
+  guardReferenceImage,
+  buildImagePrompt,
+  buildRecipeRequest,
+  guardModelOutput,
+} = require('./prompt-guard');
+const { creditStorePurchase } = require('./store-credits');
 
+/** Doğrulama hatasını 400 olarak döndürür (hangi kalıba takıldığını istemciye söylemez). */
+function sendGuardError(res, result) {
+  if (result.reason) console.warn(`[PromptGuard] Engellendi: ${result.code} ${result.field || ''} ${result.reason}`);
+  return res.status(400).json({ error: result.message, code: result.code });
+}
+
+/** Tüm üretim isteklerinde açıklama metnini doğrular ve temizler. */
 function promptSecurityMiddleware(req, res, next) {
-  const prompt = req.body?.prompt;
-  if (!prompt || typeof prompt !== 'string') {
-    return res.status(400).json({ error: 'Geçersiz prompt parametresi.' });
-  }
-
-  // DoS / Buffer Overflow koruması
-  if (prompt.length > 500) {
-    return res.status(400).json({
-      error: 'PROMPT_TOO_LONG',
-      message: 'Pasta açıklaması maksimum 500 karakter olabilir.',
-    });
-  }
-
-  // Jailbreak taraması
-  for (const pattern of SUSPICIOUS_PROMPT_PATTERNS) {
-    if (pattern.test(prompt)) {
-      return res.status(400).json({
-        error: 'PROMPT_SECURITY_VIOLATION',
-        message: 'Güvenlik ilkeleri gereği bu metin işlenemedi.',
-      });
-    }
-  }
-
-  // XSS & HTML tag temizliği
-  req.body.prompt = prompt.replace(/<[^>]*>?/gm, '').trim();
+  const check = guardText(req.body?.prompt, { required: true });
+  if (!check.ok) return sendGuardError(res, check);
+  req.body.prompt = check.value;
   next();
 }
 
@@ -72,8 +68,7 @@ const ipRateLimitStore = new Map();
 
 function rateLimitMiddleware(req, res, next) {
   const clientIp =
-    req.headers['cf-connecting-ip'] ||
-    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    req.ip ||
     req.socket.remoteAddress ||
     'anonymous';
 
@@ -131,37 +126,15 @@ app.post('/api/generate-cake', rateLimitMiddleware, promptSecurityMiddleware, as
     });
   }
 
-  const { prompt, model = 'gemini-nano-banana-2.1', referenceImageBase64 } = req.body;
-  if (!prompt || typeof prompt !== 'string') {
-    return res.status(400).json({ error: 'Geçersiz prompt parametresi.' });
-  }
+  const { prompt } = req.body;
+  const imageCheck = guardReferenceImage(req.body.referenceImageBase64);
+  if (!imageCheck.ok) return sendGuardError(res, imageCheck);
+
+  const model = configuredModel(IMAGE_MODEL_SETTING, DEFAULT_IMAGE_MODEL);
+  const referenceImageBase64 = imageCheck.data;
   const imageSize = req.body.imageSize === '4K' ? '4K' : '2K';
-
-  const multimodalGuidance = referenceImageBase64
-    ? ' EXTREMELY IMPORTANT MULTIMODAL INSTRUCTION: Carefully examine the attached inspiration photo (such as fabric texture, color palette, graphic motif, or stationery style). Harmoniously incorporate its exact color palette, motifs, textures, and aesthetic styling into the cake decorations, frosting, and presentation without adding extraneous unrequested items.'
-    : '';
-
-  const lowerPrompt = prompt.toLocaleLowerCase('tr-TR');
-  const mentionsFlowers =
-    lowerPrompt.includes('çiçek') ||
-    lowerPrompt.includes('cicek') ||
-    lowerPrompt.includes('gül') ||
-    lowerPrompt.includes('gul') ||
-    lowerPrompt.includes('papatya') ||
-    lowerPrompt.includes('orkide') ||
-    lowerPrompt.includes('floral') ||
-    lowerPrompt.includes('flower') ||
-    lowerPrompt.includes('rose') ||
-    lowerPrompt.includes('blossom') ||
-    lowerPrompt.includes('şakayık') ||
-    lowerPrompt.includes('sakayik') ||
-    lowerPrompt.includes('botanik');
-
-  const flowerConstraint = mentionsFlowers
-    ? ''
-    : ' CRITICAL NEGATIVE CONSTRAINT - NO FLOWERS: Flowers are NOT requested in the prompt. Do NOT add any flowers, sugar flowers, edible roses, floral accents, petals, leaves, or botanical decorations anywhere on or around the cake. The cake surface must remain completely free of flowers.';
-
-  const enhancedPrompt = `Professional high-end gourmet culinary food photography of an exquisite handcrafted cake: ${prompt}.${multimodalGuidance} Studio lighting, award-winning pastry chef presentation, hyperrealistic texture, clean elegant background, shallow depth of field, 8k resolution. STRICT FIDELITY RULE: Adhere 100% strictly and exclusively to the user description. Do NOT add any unrequested decorations, unrequested toppings, unrequested pearls, unrequested figurines, or unrequested embellishments. Only depict what is explicitly written in the prompt.${flowerConstraint} KATI KURAL: Yazılanların kesinlikle dışına çıkma; metinde belirtilmeyen hiçbir süsleme, çiçek veya detayı ekleme.`;
+  // Kullanıcı metni talimatlardan ayrılmış şekilde prompt'a girer.
+  const enhancedPrompt = buildImagePrompt(prompt, Boolean(referenceImageBase64));
 
   try {
     const isImagen = model.toLowerCase().startsWith('imagen');
@@ -185,7 +158,7 @@ app.post('/api/generate-cake', rateLimitMiddleware, promptSecurityMiddleware, as
       if (referenceImageBase64) {
         parts.push({
           inlineData: {
-            mimeType: 'image/jpeg',
+            mimeType: imageCheck.mimeType,
             data: referenceImageBase64,
           },
         });
@@ -292,7 +265,7 @@ app.post('/api/generate-cake', rateLimitMiddleware, promptSecurityMiddleware, as
 /**
  * 2. GÜVENLİ GEMINI 3.1 FLASH LITE PASTA TARİFİ ÜRETİMİ (Kendi Pastanı Oluştur)
  * POST /api/generate-recipe
- * Body: { prompt: string, details?: object, model?: string, maxOutputTokens?: number }
+ * Body: { prompt: string, details?: object, language?: "tr" | "en" | "fr" | "ar" }
  */
 app.post('/api/generate-recipe', rateLimitMiddleware, promptSecurityMiddleware, async (req, res) => {
   if (!GEMINI_API_KEY) {
@@ -301,32 +274,12 @@ app.post('/api/generate-recipe', rateLimitMiddleware, promptSecurityMiddleware, 
     });
   }
 
-  const { prompt, details = {}, model = 'gemini-3.1-flash-lite', maxOutputTokens = 10000 } = req.body;
-  if (!prompt || typeof prompt !== 'string') {
-    return res.status(400).json({ error: 'Geçersiz prompt parametresi.' });
-  }
+  const detailsCheck = guardCakeDetails(req.body.details);
+  if (!detailsCheck.ok) return sendGuardError(res, detailsCheck);
 
-  const flavor = details.flavor || 'Klasik Vanilya & Pastacı Kreması';
-  const guests = details.guests ? `${details.guests} kişilik` : '10-12 kişilik';
-  const tier = details.tier ? `${details.tier} katlı` : 'Tek katlı';
-  const fillings = details.fillingTags?.length ? details.fillingTags.join(', ') : 'Gourmet krema & meyve';
-  const coating = details.coating || 'Hafif vanilyalı krema kaplama';
-
-  const recipePrompt = `Sen haute pâtisserie alanında ödüllü bir baş pastacısın.
-Kullanıcının tasarladığı ve üretilen fotoğraftaki pastanın BİREBİR AYNISINI ev mutfağında sıfırdan yapabilmesi için 5.000 İLE 10.000 TOKEN ARASINDA ÇOK DETAYLI, EKSİKSİZ BİR MASTERCLASS REHBERİ HAZIRLA:
-- Tasarım: ${prompt}
-- Porsiyon: ${guests}, Kat: ${tier}, Lezzet: ${flavor}, Dolgu: ${fillings}, Kaplama: ${coating}
-
-ZORUNLU BÖLÜMLER:
-1. ALINMASI GEREKENLER & ALIŞVERİŞ LİSTESİ (Süpermarket malzemeleri + pastacılık toptancısı özel ürünleri + çember, duy, spatula gibi gerekli ekipmanlar).
-2. PANDİSPANYA / KEKİN HAZIRLANIŞI (Kaç adet yumurta konmalı, un/şeker gramajı, fırın derecesi ve süresi, çökmeden kabarma püf noktaları).
-3. İPEKSİ İÇ KREMA VE DOLGULARIN YAPILIŞI (Pişirme, kıvam tutturma, kesilmeme sırrı).
-4. DIŞ SIVAMA VE KAPLAMA KREMASI (Keskin kenarlar, pürüzsüzlük).
-5. ADIM ADIM MONTAJ (Islatma şurubu, katlandırma, crumb coat ve final coat).
-6. FOTOĞRAFTAKİ PASTAYLA BİREBİR AYNI SÜSLEME VE DEKORASYON (Renk tonları, çiçekler, drip, varak, figürler, duy uçları ve süsleme teknikleri).
-7. USTA ŞEFTEN ALTIN PÜF NOKTALARI VE SERVİS.
-
-Kurallar: Türkçe, samimi ve profesyonel üslup, Markdown formatı. ÇIKTI UZUNLUĞU: Asla özet veya kısa tutma; 5.000 ile 10.000 token aralığında tüm detayları, ölçüleri ve teknikleri eksiksiz doldur.`;
+  const model = configuredModel(RECIPE_MODEL_SETTING, DEFAULT_RECIPE_MODEL);
+  const maxOutputTokens = resolveMaxTokens(RECIPE_MAX_TOKENS_SETTING);
+  const { systemInstruction, userText } = buildRecipeRequest(req.body.prompt, detailsCheck.value, req.body.language);
 
   try {
     const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
@@ -334,9 +287,10 @@ Kurallar: Türkçe, samimi ve profesyonel üslup, Markdown formatı. ÇIKTI UZUN
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: recipePrompt }] }],
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ role: 'user', parts: [{ text: userText }] }],
         generationConfig: {
-          maxOutputTokens: Math.min(maxOutputTokens, 10000),
+          maxOutputTokens,
           temperature: 0.7,
         },
       }),
@@ -352,8 +306,10 @@ Kurallar: Türkçe, samimi ve profesyonel üslup, Markdown formatı. ÇIKTI UZUN
     const data = await response.json();
     const recipeText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (!recipeText) {
-      return res.status(502).json({ error: 'Gemini yanıtında tarif metni bulunamadı.' });
+    const outputCheck = guardModelOutput(recipeText);
+    if (!outputCheck.ok) {
+      console.warn(`[PromptGuard] Model çıktısı reddedildi: ${outputCheck.code}`);
+      return res.status(502).json({ error: outputCheck.message, code: outputCheck.code });
     }
 
     // ZERO-CLOUD STORAGE: Sunucu tarifi diske veya veritabanına kaydetmez; doğrudan istemciye iletir.
@@ -361,7 +317,7 @@ Kurallar: Türkçe, samimi ve profesyonel üslup, Markdown formatı. ÇIKTI UZUN
       'Cache-Control': 'no-store, no-cache, must-revalidate, private',
       'X-Zero-Cloud-Storage': 'true',
     });
-    return res.json({ success: true, recipe: recipeText.trim() });
+    return res.json({ success: true, recipe: outputCheck.value });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Sunucu hatası oluştu.' });
   }
@@ -373,37 +329,38 @@ Kurallar: Türkçe, samimi ve profesyonel üslup, Markdown formatı. ÇIKTI UZUN
  * Apple App Store ve Google Play satın alımları RevenueCat tarafından buraya post edilir.
  */
 app.post('/api/revenuecat-webhook', async (req, res) => {
-  // GÜVENLİK: Webhook Secret Yetkilendirme Kontrolü
-  const authHeader = req.headers.authorization;
-  if (REVENUECAT_WEBHOOK_SECRET) {
-    if (!authHeader || authHeader !== `Bearer ${REVENUECAT_WEBHOOK_SECRET}`) {
-      console.warn('[RevenueCat Webhook] Yetkisiz webhook isteği engellendi.');
-      return res.status(401).json({ error: 'UNAUTHORIZED_WEBHOOK_CALL' });
-    }
+  // GÜVENLİK: Sır tanımlı değilse webhook kapalıdır; hiçbir istek kabul edilmez.
+  if (!REVENUECAT_WEBHOOK_SECRET) {
+    console.warn('[RevenueCat Webhook] REVENUECAT_WEBHOOK_SECRET tanımlı değil, istek reddedildi.');
+    return res.status(503).json({ error: 'WEBHOOK_NOT_CONFIGURED' });
+  }
+  const expected = Buffer.from(`Bearer ${REVENUECAT_WEBHOOK_SECRET}`);
+  const received = Buffer.from(String(req.headers.authorization || ''));
+  if (received.length !== expected.length || !crypto.timingSafeEqual(received, expected)) {
+    console.warn('[RevenueCat Webhook] Yetkisiz webhook isteği engellendi.');
+    return res.status(401).json({ error: 'UNAUTHORIZED_WEBHOOK_CALL' });
   }
   const event = req.body?.event;
   if (!event) {
     return res.status(400).json({ error: 'Geçersiz webhook verisi' });
   }
 
-  const { type, app_user_id, product_id, price_in_purchased_currency } = event;
-  console.log(`[RevenueCat Webhook] Olay: ${type}, Kullanıcı: ${app_user_id}, Ürün: ${product_id}`);
+  console.log(`[RevenueCat Webhook] Olay: ${event.type}, Kullanıcı: ${event.app_user_id}, Ürün: ${event.product_id}`);
 
-  // Tüketilebilir kredi paketi eşleştirmesi
-  let creditsToAdd = 0;
-  if (product_id === 'lumiere_credits_single_15') creditsToAdd = 15;
-  else if (product_id === 'lumiere_credits_starter_200') creditsToAdd = 200;
-  else if (product_id === 'lumiere_credits_popular_1000') creditsToAdd = 1000;
-
-  if (creditsToAdd > 0) {
-    console.log(`[RevenueCat Webhook] ${app_user_id} kullanıcısına +${creditsToAdd} kredi başarıyla tanımlandı.`);
-    // Burada Supabase / PostgreSQL / Firebase veritabanında kullanıcının kredisi atomik olarak artırılır.
-  }
-
-  res.status(200).json({ received: true });
+  // Satın alınan krediyi kullanıcının Supabase cüzdanına tanımlar (store-credits.js).
+  const { status, body } = await creditStorePurchase(event);
+  res.status(status).json(body);
 });
 
-app.listen(PORT, () => {
-  console.log(`Lumière Sucrée Secure Backend çalışıyor: http://localhost:${PORT}`);
+// HOST=127.0.0.1 ile sadece Nginx erişebilir (Docker için varsayılan 0.0.0.0).
+const HOST = process.env.HOST || '0.0.0.0';
+app.listen(PORT, HOST, () => {
+  if (!GEMINI_API_KEY) console.warn('UYARI: GEMINI_API_KEY tanımlı değil, üretim istekleri çalışmayacak.');
+  console.log(
+    `Modeller — görsel: ${configuredModel(IMAGE_MODEL_SETTING, DEFAULT_IMAGE_MODEL)}, ` +
+      `tarif: ${configuredModel(RECIPE_MODEL_SETTING, DEFAULT_RECIPE_MODEL)} ` +
+      `(maks. ${resolveMaxTokens(RECIPE_MAX_TOKENS_SETTING)} token)`,
+  );
+  console.log(`Lumière Sucrée Secure Backend çalışıyor: http://${HOST}:${PORT}`);
 });
 

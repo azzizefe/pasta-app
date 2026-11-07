@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "يتيح لك Lumière Sucrée اختيار صور الدعوات أو الأفكار لتلهم تصاميم كعكاتك.",
+    "NSPhotoLibraryAddUsageDescription": "نحتاج إلى الإذن لحفظ تصاميم الكعك التي تبتكرها في مكتبة الصور بدقة عالية.",
+    "NSCameraUsageDescription": "التقط صورة للتفاصيل التي تلهمك ليومك المميز وحوّلها إلى تصميم كعكة."
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée pozwala wybrać zdjęcia zaproszeń lub inspiracji do projektów Twoich tortów.",
+    "NSPhotoLibraryAddUsageDescription": "Zgoda jest potrzebna, aby zapisywać utworzone projekty tortów w bibliotece zdjęć w wysokiej rozdzielczości.",
+    "NSCameraUsageDescription": "Zrób zdjęcie szczegółów, które inspirują Cię na Twój wyjątkowy dzień, i zamień je w projekt tortu."
+  }
+}

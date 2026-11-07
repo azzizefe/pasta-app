@@ -15,9 +15,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Defs, Ellipse, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { ChefHatIcon, SparkleIcon } from './Icons';
+import ShimmerPlaceholder from './ShimmerPlaceholder';
 import { Float, NATIVE, PressableScale, ShineSweep } from './motion';
 import { type CakeKind } from '../screens/CakeBuilderScreen';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 const WEDDING_CAKE = require('../../assets/wedding-cake.png');
 const BIRTHDAY_CAKE = require('../../assets/birthday-cake.png');
@@ -106,10 +109,12 @@ type Props = {
 };
 
 export default function CakeCarousel3D({ onSelectCake }: Props) {
+  useTx();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const scrollX = useRef(new Animated.Value(0)).current;
   const listRef = useRef<Animated.FlatList>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [loadedImages, setLoadedImages] = useState<Record<string, boolean>>({});
 
   // Responsive dimensions for the 3D stage (Grand, high-impact hero showcase)
   const maxContainerWidth = Math.min(windowWidth, 460);
@@ -238,7 +243,12 @@ export default function CakeCarousel3D({ onSelectCake }: Props) {
           ref={listRef as any}
           data={CAKE_ITEMS}
           keyExtractor={(item) => item.id}
+          // Re-render cells when the active cake or a loaded image changes.
+          extraData={`${activeIndex}:${Object.keys(loadedImages).length}`}
           horizontal
+          // Without a fixed width the list grows to its content and gets
+          // centred by the stage, so it can't scroll and shows the wrong cake.
+          style={styles.list}
           showsHorizontalScrollIndicator={false}
           snapToInterval={itemWidth}
           decelerationRate="fast"
@@ -379,14 +389,30 @@ export default function CakeCarousel3D({ onSelectCake }: Props) {
 
                   {/* Endless Floating Bobbing Motion */}
                   <Float distance={4} duration={3000 + (index % 3) * 300} delay={index * 120}>
-                    <Image
-                      source={item.image}
-                      style={{ width: cakeWidth, height: cakeHeight }}
-                      contentFit="contain"
-                      transition={220}
-                      cachePolicy="memory-disk"
-                      accessibilityLabel={item.title}
-                    />
+                    <View style={{ width: cakeWidth, height: cakeHeight }}>
+                      {/* Soft shimmer so the stage isn't blank while the artwork loads */}
+                      {!loadedImages[item.id] && (
+                        <ShimmerPlaceholder
+                          width={cakeWidth * 0.8}
+                          height={cakeHeight * 0.8}
+                          borderRadius={28}
+                          style={styles.imageShimmer}
+                        />
+                      )}
+                      <Image
+                        source={item.image}
+                        style={{ width: cakeWidth, height: cakeHeight }}
+                        contentFit="contain"
+                        transition={220}
+                        cachePolicy="memory-disk"
+                        accessibilityLabel={tx(item.title)}
+                        onLoad={() =>
+                          setLoadedImages((prev) =>
+                            prev[item.id] ? prev : { ...prev, [item.id]: true },
+                          )
+                        }
+                      />
+                    </View>
                   </Float>
 
                   {/* 3D Dynamic Contact Shadow */}
@@ -450,7 +476,7 @@ export default function CakeCarousel3D({ onSelectCake }: Props) {
                   onPress={() => scrollToIndex(idx)}
                   hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
                   accessibilityRole="button"
-                  accessibilityLabel={`${item.title} pastasını seç`}
+                  accessibilityLabel={tx("{title} pastasını seç", { title: item.title })}
                   style={styles.dotTouchTarget}
                 >
                   <Animated.View
@@ -521,19 +547,19 @@ export default function CakeCarousel3D({ onSelectCake }: Props) {
               </View>
 
               <View style={styles.creditsBadge}>
-                <Text style={styles.creditsBadgeText}>✦ {activeCake.credits} Kredi</Text>
+                <Text style={styles.creditsBadgeText}>{tx("✦ {credits} Kredi", { credits: activeCake.credits })}</Text>
               </View>
             </View>
 
             {/* Title & Subtitle */}
-            <Text style={styles.cakeTitle}>{activeCake.title}</Text>
-            <Text style={styles.cakeSubtitle}>{activeCake.subtitle}</Text>
+            <Text style={styles.cakeTitle}>{tx(activeCake.title)}</Text>
+            <Text style={styles.cakeSubtitle}>{tx(activeCake.subtitle)}</Text>
 
             {/* Feature Tags */}
             <View style={styles.tagsRow}>
               {activeCake.tags.map((tag) => (
                 <View key={tag} style={styles.tagChip}>
-                  <Text style={styles.tagChipText}>{tag}</Text>
+                  <Text style={styles.tagChipText}>{tx(tag)}</Text>
                 </View>
               ))}
             </View>
@@ -542,7 +568,7 @@ export default function CakeCarousel3D({ onSelectCake }: Props) {
           {/* Main CTA Button: 'Pastayı Tasarla' */}
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={`${activeCake.title} Tasarla`}
+            accessibilityLabel={tx("{title} Tasarla", { title: activeCake.title })}
             onPress={() => onSelectCake(activeCake.kind)}
             style={styles.ctaWrapper}
             contentStyle={styles.ctaButton}
@@ -557,7 +583,7 @@ export default function CakeCarousel3D({ onSelectCake }: Props) {
             <View style={styles.ctaIconCircle}>
               <ChefHatIcon size={18} color={home.accentGold} />
             </View>
-            <Text style={styles.ctaButtonText}>Pasta Tasarla</Text>
+            <Text style={styles.ctaButtonText}>{tx("Pasta Tasarla")}</Text>
           </PressableScale>
         </LinearGradient>
       </View>
@@ -576,6 +602,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'visible',
+  },
+  imageShimmer: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '10%',
+  },
+  list: {
+    width: '100%',
+    flexGrow: 0,
   },
   itemWrapper: {
     alignItems: 'center',

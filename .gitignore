@@ -46,3 +46,4 @@ yarn-error.*
 /test-results/
 /replica/e2e-report/
 /playwright/.cache/
+server.tgz

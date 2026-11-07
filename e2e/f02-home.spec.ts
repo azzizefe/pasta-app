@@ -1,4 +1,4 @@
-import { expect, signIn, test } from './helpers';
+import { expect, signIn, test, WELCOME_CREDITS } from './helpers';
 
 test.describe('F02 ana sayfa ve gezinme', () => {
   test.beforeEach(async ({ page }) => {
@@ -6,19 +6,19 @@ test.describe('F02 ana sayfa ve gezinme', () => {
   });
 
   test('F02-H1 sekmeler arasında gezinme', async ({ page }) => {
-    await page.getByRole('tab', { name: 'Saved' }).click();
+    await page.getByRole('tab', { name: 'Koleksiyon' }).click();
     await expect(page.getByText('Koleksiyonum')).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Saved' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tab', { name: 'Koleksiyon' })).toHaveAttribute('aria-selected', 'true');
 
-    await page.getByRole('tab', { name: 'Profile' }).click();
-    await expect(page.getByText('Mevcut Bakiyem')).toBeVisible();
+    await page.getByRole('tab', { name: 'Hesabım' }).click();
+    await expect(page.getByText('Tasarım Bakiyesi')).toBeVisible();
 
-    await page.getByRole('tab', { name: 'Home' }).click();
-    await expect(page.getByText('Merhaba Amélie,')).toBeVisible();
+    await page.getByRole('tab', { name: 'Atölye' }).click();
+    await expect(page.getByText(/^(Merhaba|Hoş geldin)/)).toBeVisible();
   });
 
   test('F02-H2 kredi rozeti Kredilerim ekranını açar', async ({ page }) => {
-    await page.getByRole('button', { name: 'Kredi bakiyesi 30' }).click();
+    await page.getByRole('button', { name: `Kredi bakiyesi ${WELCOME_CREDITS}` }).click();
     await expect(page.getByText('Kredilerim')).toBeVisible();
     await expect(page.getByRole('button', { name: /200 Kredi satın al/ })).toBeVisible();
   });

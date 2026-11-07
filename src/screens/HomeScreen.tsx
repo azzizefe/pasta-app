@@ -27,15 +27,16 @@ import { useOccasions } from '../context/OccasionsContext';
 import { type CakeKind } from './CakeBuilderScreen';
 import { type CakeDetails } from '../types/savedCake';
 import { fonts, home } from '../theme/theme';
+import { PRIVACY_URL, TERMS_URL } from '../config/app';
+import { useLanguage } from '../context/LanguageContext';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 /** Warm wash behind the greeting, fading back into plain ivory. */
 const WASH_COLORS = [home.washTop, home.washMid, home.washEnd] as const;
 const WASH_STOPS = [0, 0.24, 0.58] as const;
 
 const CONTENT_MAX_WIDTH = 460;
-
-const USER_NAME = 'Amélie';
-const USER_EMAIL = 'amelie@lumieresucree.app';
 
 const WEDDING_CAKE = require('../../assets/wedding-cake.png');
 const BIRTHDAY_CAKE = require('../../assets/birthday-cake.png');
@@ -67,6 +68,7 @@ export default function HomeScreen({
   onDeleteAccount,
   onOpenBuilder,
 }: Props) {
+  useTx();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const [tab, setTab] = useState<TabKey>('home');
@@ -74,7 +76,7 @@ export default function HomeScreen({
   const [measuredPaneHeight, setMeasuredPaneHeight] = useState<number | null>(null);
   const [customName, setCustomName] = useState<string | null>(null);
   const { upcomingOccasions } = useOccasions();
-  const { credits, openPurchaseModal } = useCredits();
+  const { credits, openPurchaseModal } = useCredits();
 
   useEffect(() => {
     AsyncStorage.getItem('@lumiere_user_custom_name')
@@ -84,8 +86,9 @@ export default function HomeScreen({
       .catch(() => {});
   }, []);
 
-  const effectiveName = customName || userName || USER_NAME;
+  const effectiveName = (customName || userName || '').trim();
   const firstName = effectiveName.split(' ')[0];
+  const greeting = firstName ? `${tx("Merhaba")} ${firstName}` : tx("Hoş geldin");
 
   // Dynamic card height so exactly 3 cards fit on screen without the 4th peeking/overflowing.
   // When scrolled down, subsequent cards appear cleanly.
@@ -101,15 +104,11 @@ export default function HomeScreen({
   const handleCustomCake = useCallback(() => onOpenBuilder('custom'), [onOpenBuilder]);
   const handleDiyCake = useCallback(() => onOpenBuilder('diy'), [onOpenBuilder]);
   const handleOpenPrivacy = useCallback(() => {
-    Linking.openURL('https://lumieresucree.app/privacy').catch(() => {
-      Linking.openURL('https://www.apple.com/legal/privacy/');
-    });
+    Linking.openURL(PRIVACY_URL).catch((err) => console.warn('Could not open privacy:', err));
   }, []);
 
   const handleOpenTerms = useCallback(() => {
-    Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/').catch(err => {
-      console.warn('Could not open terms:', err);
-    });
+    Linking.openURL(TERMS_URL).catch((err) => console.warn('Could not open terms:', err));
   }, []);
 
   return (
@@ -124,9 +123,14 @@ export default function HomeScreen({
 
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         {tab === 'home' ? (
-          <Text style={styles.brand} numberOfLines={1}>
-            Merhaba {firstName},
-          </Text>
+          <View style={styles.greetingBlock}>
+            <Text style={styles.brand} numberOfLines={1}>
+              {greeting}
+            </Text>
+            <Text style={styles.greetingSub} numberOfLines={1}>
+              {tx("Bugün ne kutluyoruz?")}
+            </Text>
+          </View>
         ) : (
           <View />
         )}
@@ -134,7 +138,7 @@ export default function HomeScreen({
           <View style={styles.headerActions}>
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel={`Kredi bakiyesi ${credits}`}
+              accessibilityLabel={tx("Kredi bakiyesi {credits}", { credits })}
               onPress={openPurchaseModal}
               contentStyle={styles.creditChip}
             >
@@ -143,7 +147,7 @@ export default function HomeScreen({
             </PressableScale>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Özel Gün Takvimi ve Hatırlatıcılar"
+              accessibilityLabel={tx("Özel Gün Takvimi ve Hatırlatıcılar")}
               onPress={() => setIsCalendarOpen(true)}
               style={styles.headerButton}
               hitSlop={8}
@@ -198,8 +202,8 @@ export default function HomeScreen({
 
       <View style={[styles.pane, tab !== 'profile' && styles.paneHidden]}>
         <ProfilePane
-          name={effectiveName}
-          email={userEmail || USER_EMAIL}
+          name={effectiveName || tx("Lumière Misafiri")}
+          email={userEmail || ''}
           authProvider={authProvider}
           onPrivacyPolicy={handleOpenPrivacy}
           onTermsOfUse={handleOpenTerms}
@@ -277,6 +281,15 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#3D2808',
     fontWeight: '700',
+  },
+  greetingBlock: {
+    flexShrink: 1,
+    marginRight: 12,
+  },
+  greetingSub: {
+    marginTop: 2,
+    fontSize: 13.5,
+    color: home.body,
   },
   brand: {
     flexShrink: 1,

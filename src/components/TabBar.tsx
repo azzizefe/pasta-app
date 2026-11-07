@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BookmarkIcon, HomeIcon, UserIcon } from './Icons';
 import { NATIVE } from './motion';
+import { useTx } from '../context/LanguageContext';
 import { home } from '../theme/theme';
 
 export type TabKey = 'home' | 'saved' | 'profile';
@@ -15,12 +16,13 @@ type Props = {
 
 const TABS: Array<{
   key: TabKey;
-  label: string;
   Icon: typeof HomeIcon;
+  /** Turkish source text, translated with tx(). */
+  label: string;
 }> = [
-  { key: 'home', label: 'Home', Icon: HomeIcon },
-  { key: 'saved', label: 'Saved', Icon: BookmarkIcon },
-  { key: 'profile', label: 'Profile', Icon: UserIcon },
+  { key: 'home', Icon: HomeIcon, label: 'Atölye' },
+  { key: 'saved', Icon: BookmarkIcon, label: 'Koleksiyon' },
+  { key: 'profile', Icon: UserIcon, label: 'Hesabım' },
 ];
 
 const PILL_WIDTH = 60;
@@ -28,6 +30,7 @@ const PILL_WIDTH = 60;
 /** Three-slot bottom bar with a gold pill that glides to the active tab. */
 export default function TabBar({ active, onChange }: Props) {
   const insets = useSafeAreaInsets();
+  const tx = useTx();
   const [barWidth, setBarWidth] = useState(0);
   const activeIndex = TABS.findIndex((t) => t.key === active);
   const position = useRef(new Animated.Value(activeIndex)).current;
@@ -69,7 +72,8 @@ export default function TabBar({ active, onChange }: Props) {
         />
       )}
 
-      {TABS.map(({ key, label, Icon }) => {
+      {TABS.map(({ key, Icon, label: source }) => {
+        const label = tx(source);
         const isActive = key === active;
         const tint = isActive ? home.ink : home.tabInactive;
 

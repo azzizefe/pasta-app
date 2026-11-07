@@ -9,7 +9,7 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#FAF6F0",
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.lumieresucree.app",
       "usesAppleSignIn": true,
       "config": {
@@ -18,7 +18,8 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Lumière Sucrée, pasta tasarımlarınıza ilham vermesi için davetiye veya konsept fotoğraflarını seçmenize olanak tanır.",
         "NSPhotoLibraryAddUsageDescription": "Oluşturduğunuz şaheser pasta tasarımlarını fotoğraf galerinize yüksek çözünürlükte kaydetmek için izin gereklidir.",
-        "NSCameraUsageDescription": "Özel gününüz için ilham aldığınız detayların anlık fotoğrafını çekerek pasta tasarımına dönüştürmenizi sağlar."
+        "NSCameraUsageDescription": "Özel gününüz için ilham aldığınız detayların anlık fotoğrafını çekerek pasta tasarımına dönüştürmenizi sağlar.",
+        "CFBundleAllowMixedLocalizations": true
       }
     },
     "android": {
@@ -34,14 +35,64 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "locales": {
+      "tr": "./locales/tr.json",
+      "en": "./locales/en.json",
+      "fr": "./locales/fr.json",
+      "ar": "./locales/ar.json",
+      "de": "./locales/de.json",
+      "es": "./locales/es.json",
+      "it": "./locales/it.json",
+      "pt": "./locales/pt.json",
+      "ru": "./locales/ru.json",
+      "uk": "./locales/uk.json",
+      "pl": "./locales/pl.json",
+      "nl": "./locales/nl.json",
+      "ja": "./locales/ja.json",
+      "ko": "./locales/ko.json",
+      "zh-Hans": "./locales/zh-Hans.json",
+      "id": "./locales/id.json"
+    },
     "plugins": [
       "expo-font",
       "expo-status-bar",
       "expo-image",
       "expo-sharing",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Lumière Sucrée, pasta tasarımlarınıza ilham vermesi için davetiye veya konsept fotoğraflarını seçmenize olanak tanır.",
+          "savePhotosPermission": "Oluşturduğunuz şaheser pasta tasarımlarını fotoğraf galerinize yüksek çözünürlükte kaydetmek için izin gereklidir.",
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ],
       "expo-apple-authentication",
       "@sentry/react-native",
-      "expo-localization",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": [
+            "tr",
+            "en",
+            "fr",
+            "ar",
+            "de",
+            "es",
+            "it",
+            "pt",
+            "ru",
+            "uk",
+            "pl",
+            "nl",
+            "ja",
+            "ko",
+            "zh-Hans",
+            "id"
+          ]
+        }
+      ],
       [
         "expo-splash-screen",
         {

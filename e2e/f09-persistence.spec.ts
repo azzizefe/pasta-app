@@ -1,7 +1,8 @@
-import { expect, generateButton, choosePalette, openBuilder, readCredits, seedCredits, signIn, test } from './helpers';
+import { DESIGN_COST, expect, generateButton, choosePalette, openBuilder, readCredits, seedCredits, signIn, test } from './helpers';
 
 test.describe('F09 kalıcılık', () => {
   test('F09-H1 bakiye ve koleksiyon yenileme sonrası korunur', async ({ page }) => {
+    await seedCredits(page, 30);
     await signIn(page);
     await openBuilder(page);
     await choosePalette(page);
@@ -9,15 +10,16 @@ test.describe('F09 kalıcılık', () => {
     await expect(page.getByRole('button', { name: 'Fotoğrafı Büyüt' })).toBeVisible();
 
     await page.reload();
-    const signInButton = page.getByRole('button', { name: 'Sign in with Google' });
+    const signInButton = page.getByRole('button', { name: 'Google ile Giriş Yap' });
     if (await signInButton.isVisible()) await signInButton.click();
-    await expect(page.getByRole('button', { name: 'Kredi bakiyesi 10' })).toBeVisible();
-    await page.getByRole('tab', { name: 'Saved' }).click();
+    await expect(page.getByRole('button', { name: `Kredi bakiyesi ${30 - DESIGN_COST}` })).toBeVisible();
+    await page.getByRole('tab', { name: 'Koleksiyon' }).click();
     await expect(page.getByText('Koleksiyonun Henüz Boş')).toBeHidden();
   });
 
   test('F03-E6 üretim sürerken geri dönmek bakiyeyi ve kaydı tutarlı bırakır', async ({ page, gemini }) => {
     gemini.mode = 'slow';
+    await seedCredits(page, 30);
     await signIn(page);
     await openBuilder(page);
     await choosePalette(page);
@@ -26,9 +28,9 @@ test.describe('F09 kalıcılık', () => {
     await page.getByRole('button', { name: 'Geri' }).click();
     await page.waitForTimeout(6_500);
 
-    expect(await readCredits(page)).toBe(10);
+    expect(await readCredits(page)).toBe(30 - DESIGN_COST);
     await page.getByRole('button', { name: 'Geri' }).click();
-    await page.getByRole('tab', { name: 'Saved' }).click();
+    await page.getByRole('tab', { name: 'Koleksiyon' }).click();
     await expect(page.getByText('Koleksiyonun Henüz Boş')).toBeHidden();
   });
 
@@ -48,7 +50,7 @@ test.describe('F09 kalıcılık', () => {
       await expect(tab.getByRole('button', { name: 'Fotoğrafı Büyüt' })).toBeVisible();
     }
 
-    // Two 20-credit designs from 40 must leave 0, not 20.
-    expect(await readCredits(page)).toBe(0);
+    // Two designs from 40 must both be charged, not just the last one.
+    expect(await readCredits(page)).toBe(40 - 2 * DESIGN_COST);
   });
 });

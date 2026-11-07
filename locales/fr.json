@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée te permet de choisir des photos de faire-part ou d'inspiration pour tes créations de gâteaux.",
+    "NSPhotoLibraryAddUsageDescription": "L'autorisation est nécessaire pour enregistrer tes créations de gâteaux en haute résolution dans ta photothèque.",
+    "NSCameraUsageDescription": "Prends en photo les détails qui t'inspirent pour ton grand jour et transforme-les en création de gâteau."
+  }
+}

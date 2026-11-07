@@ -465,6 +465,15 @@ export function AlertCircleIcon({ size = 20, color, strokeWidth = 1.7 }: Props) 
   );
 }
 
+export function ClockIcon({ size = 20, color, strokeWidth = 1.7 }: Props) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+      <Path d="M12 7.5V12l3 2" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+    </Svg>
+  );
+}
+
 export function HelpCircleIcon({ size = 20, color, strokeWidth = 1.7 }: Props) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
@@ -511,3 +520,24 @@ export function StarIcon({ size = 20, color, strokeWidth = 1.7 }: Props) {
     </Svg>
   );
 }
+
+export function GiftIcon({ size = 20, color, strokeWidth = 1.7 }: Props) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Rect x="3" y="8" width="18" height="4" rx="1.5" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+      <Path d="M12 8v13M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+      <Path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 4.8 0 0 1 12 8a4.8 4.8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+    </Svg>
+  );
+}
+
+export function UsersIcon({ size = 20, color, strokeWidth = 1.7 }: Props) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+      <Circle cx="9" cy="7" r="4" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+      <Path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" />
+    </Svg>
+  );
+}
+

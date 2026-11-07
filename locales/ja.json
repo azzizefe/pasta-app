@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée では、ケーキデザインのヒントになる招待状やイメージ写真を選べます。",
+    "NSPhotoLibraryAddUsageDescription": "作成したケーキデザインを高解像度で写真ライブラリに保存するには許可が必要です。",
+    "NSCameraUsageDescription": "特別な日のヒントになるディテールを撮影して、ケーキデザインに変えられます。"
+  }
+}

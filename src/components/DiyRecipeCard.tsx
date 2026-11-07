@@ -17,6 +17,8 @@ import {
   SparkleIcon,
 } from './Icons';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 interface Props {
   recipe?: string | null;
@@ -97,9 +99,10 @@ export default function DiyRecipeCard({
   isLoading = false,
   error = null,
   onRetry,
-  cakeTitle = 'Özel Ev Yapımı Pasta',
+  cakeTitle = tx("Özel Ev Yapımı Pasta"),
   isReadOnly = false,
 }: Props) {
+  useTx();
   const [copied, setCopied] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -114,7 +117,7 @@ export default function DiyRecipeCard({
       navigator.clipboard.writeText(recipe);
     }
     setCopied(true);
-    showToast('Pasta tarifi panoya kopyalandı! 📋');
+    showToast(tx("Pasta tarifi panoya kopyalandı! 📋"));
     setTimeout(() => setCopied(false), 2200);
   };
 
@@ -124,18 +127,18 @@ export default function DiyRecipeCard({
       if (Platform.OS === 'web') {
         if (typeof navigator !== 'undefined' && navigator.share) {
           await navigator.share({
-            title: `${cakeTitle} - Şefin Özel Ev Yapımı Pasta Tarifi`,
+            title: tx("{cakeTitle} - Şefin Özel Ev Yapımı Pasta Tarifi", { cakeTitle }),
             text: recipe,
           });
-          showToast('Tarif başarıyla paylaşıldı! ✨');
+          showToast(tx("Tarif başarıyla paylaşıldı! ✨"));
         } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
           await navigator.clipboard.writeText(recipe);
-          showToast('Tarif panoya kopyalandı! 📋');
+          showToast(tx("Tarif panoya kopyalandı! 📋"));
         }
       } else {
         await Share.share({
-          title: `${cakeTitle} - Ev Yapımı Pasta Tarifi`,
-          message: `${cakeTitle} — Şefin Özel Ev Yapımı Pasta Tarifi\n\n${recipe}`,
+          title: tx("{cakeTitle} - Ev Yapımı Pasta Tarifi", { cakeTitle }),
+          message: tx("{cakeTitle} — Şefin Özel Ev Yapımı Pasta Tarifi\n\n{recipe}", { cakeTitle, recipe }),
         });
       }
     } catch {
@@ -152,8 +155,8 @@ export default function DiyRecipeCard({
             <ChefHatIcon size={18} color="#FFFDF9" />
           </View>
           <View>
-            <Text style={styles.title}>ÖZEL EV YAPIMI PASTA TARİFİ</Text>
-            <Text style={styles.subtitle}>Kendi Pastanı Oluştur • Şefin Adım Adım Rehberi</Text>
+            <Text style={styles.title}>{tx("ÖZEL EV YAPIMI PASTA TARİFİ")}</Text>
+            <Text style={styles.subtitle}>{tx("Kendi Pastanı Oluştur • Şefin Adım Adım Rehberi")}</Text>
           </View>
         </View>
       </View>
@@ -161,23 +164,23 @@ export default function DiyRecipeCard({
       {/* Öne Çıkan Hızlı İpuçları Şeridi */}
       <View style={styles.highlightBar}>
         <View style={styles.highlightItem}>
-          <Text style={styles.highlightNumber}>170°C</Text>
-          <Text style={styles.highlightLabel}>Fırın Derecesi</Text>
+          <Text style={styles.highlightNumber}>{tx("170°C")}</Text>
+          <Text style={styles.highlightLabel}>{tx("Fırın Derecesi")}</Text>
         </View>
         <View style={styles.highlightDivider} />
         <View style={styles.highlightItem}>
-          <Text style={styles.highlightNumber}>Ölçülü</Text>
-          <Text style={styles.highlightLabel}>Yumurta & Gramaj</Text>
+          <Text style={styles.highlightNumber}>{tx("Ölçülü")}</Text>
+          <Text style={styles.highlightLabel}>{tx("Yumurta & Gramaj")}</Text>
         </View>
         <View style={styles.highlightDivider} />
         <View style={styles.highlightItem}>
-          <Text style={styles.highlightNumber}>İpeksi</Text>
-          <Text style={styles.highlightLabel}>Pastacı Kreması</Text>
+          <Text style={styles.highlightNumber}>{tx("İpeksi")}</Text>
+          <Text style={styles.highlightLabel}>{tx("Pastacı Kreması")}</Text>
         </View>
         <View style={styles.highlightDivider} />
         <View style={styles.highlightItem}>
-          <Text style={styles.highlightNumber}>Birebir</Text>
-          <Text style={styles.highlightLabel}>Görsel Süsleme</Text>
+          <Text style={styles.highlightNumber}>{tx("Birebir")}</Text>
+          <Text style={styles.highlightLabel}>{tx("Görsel Süsleme")}</Text>
         </View>
       </View>
 
@@ -185,24 +188,22 @@ export default function DiyRecipeCard({
       {isLoading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color={home.accentGold} />
-          <Text style={styles.loadingTitle}>Usta Şef Pasta Rehberinizi Hazırlıyor...</Text>
-          <Text style={styles.loadingSubtitle}>
-            Alışveriş listesi, pandispanya fırın derecesi, yumurta adetleri, krema yapımı ve fotoğraftaki süslemenin birebir yapılışı hazırlanıyor.
-          </Text>
+          <Text style={styles.loadingTitle}>{tx("Usta Şef Pasta Rehberinizi Hazırlıyor...")}</Text>
+          <Text style={styles.loadingSubtitle}>{tx("Alışveriş listesi, pandispanya fırın derecesi, yumurta adetleri, krema yapımı ve fotoğraftaki süslemenin birebir yapılışı hazırlanıyor.")}</Text>
         </View>
       ) : error ? (
         /* Hata Durumu */
         <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Tarif Oluşturulamadı</Text>
+          <Text style={styles.errorTitle}>{tx("Tarif Oluşturulamadı")}</Text>
           <Text style={styles.errorSubtitle}>{error}</Text>
           {onRetry && (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Tarifi Tekrar Dene"
+              accessibilityLabel={tx("Tarifi Tekrar Dene")}
               onPress={onRetry}
               style={styles.retryButton}
             >
-              <Text style={styles.retryButtonText}>Tarifi Tekrar Dene</Text>
+              <Text style={styles.retryButtonText}>{tx("Tarifi Tekrar Dene")}</Text>
             </Pressable>
           )}
         </View>
@@ -217,7 +218,7 @@ export default function DiyRecipeCard({
           <View style={styles.actionRow}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Tarifi Panoya Kopyala"
+              accessibilityLabel={tx("Tarifi Panoya Kopyala")}
               onPress={handleCopy}
               hitSlop={6}
               style={[styles.actionBtn, copied && styles.actionBtnActive]}
@@ -225,34 +226,34 @@ export default function DiyRecipeCard({
               {copied ? (
                 <>
                   <CheckIcon size={15} color={home.ink} />
-                  <Text style={styles.actionBtnText}>Kopyalandı</Text>
+                  <Text style={styles.actionBtnText}>{tx("Kopyalandı")}</Text>
                 </>
               ) : (
                 <>
                   <CopyIcon size={15} color={home.ink} />
-                  <Text style={styles.actionBtnText}>Tarifi Kopyala</Text>
+                  <Text style={styles.actionBtnText}>{tx("Tarifi Kopyala")}</Text>
                 </>
               )}
             </Pressable>
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Tarifi Paylaş"
+              accessibilityLabel={tx("Tarifi Paylaş")}
               onPress={handleShare}
               hitSlop={6}
               style={styles.actionBtn}
             >
               <ShareIcon size={15} color={home.ink} />
-              <Text style={styles.actionBtnText}>Tarifi Paylaş</Text>
+              <Text style={styles.actionBtnText}>{tx("Tarifi Paylaş")}</Text>
             </Pressable>
           </View>
         </View>
       ) : (
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingSubtitle}>Tarif henüz üretilmedi.</Text>
+          <Text style={styles.loadingSubtitle}>{tx("Tarif henüz üretilmedi.")}</Text>
           {onRetry && (
             <Pressable onPress={onRetry} style={styles.retryButton}>
-              <Text style={styles.retryButtonText}>Tarif Oluştur</Text>
+              <Text style={styles.retryButtonText}>{tx("Tarif Oluştur")}</Text>
             </Pressable>
           )}
         </View>

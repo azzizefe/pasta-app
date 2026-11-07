@@ -27,7 +27,6 @@ import {
   ChevronRightIcon,
   CloseIcon,
   CoinsIcon,
-  GlobeIcon,
   HelpCircleIcon,
   ImageIcon,
   InfoIcon,
@@ -46,13 +45,14 @@ import HelpCenterSheet from './HelpCenterSheet';
 import PrivacyCenterSheet from './PrivacyCenterSheet';
 import ReportIssueSheet from './ReportIssueSheet';
 import { CREDITS_PER_GENERATION, useCredits } from '../context/CreditsContext';
-import { useLanguage } from '../context/LanguageContext';
 import {
   areNotificationsEnabled,
   sendTestNotification,
   setNotificationsEnabled,
 } from '../services/notificationService';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 /** Masks the middle of the email local-part with asterisks (e.g. ef****a7@gmail.com). */
 function maskEmail(rawEmail: string): string {
@@ -87,6 +87,7 @@ type RowProps = {
 
 /** One tappable settings row inside the account card. */
 function Row({ icon, label, subtitle, value, onPress, isLast }: RowProps) {
+  useTx();
   return (
     <Pressable
       accessibilityRole="button"
@@ -136,9 +137,8 @@ export default function ProfilePane({
   onOpenCalendar,
   onUpdateName,
 }: Props) {
+  useTx();
   const { credits, openPurchaseModal } = useCredits();
-  const { t, language, setLanguage, languages, currentLanguageInfo } = useLanguage();
-  const [isLanguageModalOpen, setIsLanguageModalOpen] = useState(false);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState<AppSheet | null>(null);
@@ -214,7 +214,7 @@ export default function ProfilePane({
   const handleSaveName = async () => {
     const trimmed = editName.trim();
     if (!trimmed) {
-      showAlert('Eksik Bilgi', 'Kullanıcı adı boş bırakılamaz.');
+      showAlert(tx("Eksik Bilgi"), tx("Kullanıcı adı boş bırakılamaz."));
       return;
     }
     setIsSavingName(true);
@@ -230,9 +230,9 @@ export default function ProfilePane({
       }
       setUserName(trimmed);
       onUpdateName?.(trimmed);
-      showAlert('Başarılı ✨', 'Kullanıcı adınız güncellendi.');
+      showAlert(tx("Başarılı ✨"), tx("Kullanıcı adınız güncellendi."));
     } catch (err) {
-      showAlert('Hata', 'Kullanıcı adı güncellenemedi.');
+      showAlert(tx("Hata"), tx("Kullanıcı adı güncellenemedi."));
     } finally {
       setIsSavingName(false);
     }
@@ -243,7 +243,7 @@ export default function ProfilePane({
     const success = await setNotificationsEnabled(val);
     if (!success && val) {
       setNotificationsEnabledState(false);
-      showAlert('Bildirim İzni', 'Cihaz ayarlarından bildirimlere izin vermeniz gerekebilir.');
+      showAlert(tx("Bildirim İzni"), tx("Cihaz ayarlarından bildirimlere izin vermeniz gerekebilir."));
     }
   };
 
@@ -263,17 +263,17 @@ export default function ProfilePane({
       const ok = await sendTestNotification(userName || 'Pastasever');
       if (ok) {
         showAlert(
-          'Bildirim Gönderildi ✨',
-          'Birkaç saniye içinde cihazınıza örnek bir bildirim ulaşacaktır.'
+          tx("Bildirim Gönderildi ✨"),
+          tx("Birkaç saniye içinde cihazınıza örnek bir bildirim ulaşacaktır.")
         );
       } else {
         showAlert(
-          'Bildirim İzni Gerekli',
-          'Bildirim gönderebilmek için cihazınızın ayarlarından Lumière Sucrée uygulamasına bildirim izni vermelisiniz.'
+          tx("Bildirim İzni Gerekli"),
+          tx("Bildirim gönderebilmek için cihazınızın ayarlarından Lumière Sucrée uygulamasına bildirim izni vermelisiniz.")
         );
       }
     } catch {
-      showAlert('Hata', 'Test bildirimi gönderilemedi.');
+      showAlert(tx("Hata"), tx("Test bildirimi gönderilemedi."));
     } finally {
       setIsTestingNotification(false);
     }
@@ -285,34 +285,34 @@ export default function ProfilePane({
         await Linking.openSettings();
       } else {
         showAlert(
-          'Bildirim Ayarları',
-          'Cihazınızın Ayarlar menüsünden uygulamayı bularak bildirim izinlerini yönetebilirsiniz.'
+          tx("Bildirim Ayarları"),
+          tx("Cihazınızın Ayarlar menüsünden uygulamayı bularak bildirim izinlerini yönetebilirsiniz.")
         );
       }
     } catch (err) {
       console.warn('Ayarlar açılamadı:', err);
       showAlert(
-        'Bildirim Ayarları',
-        'Cihazınızın Ayarlar menüsünden uygulamayı bularak bildirim izinlerini açabilirsiniz.'
+        tx("Bildirim Ayarları"),
+        tx("Cihazınızın Ayarlar menüsünden uygulamayı bularak bildirim izinlerini açabilirsiniz.")
       );
     }
   };
 
-  const handleOpenLanguageSettings = async () => {
+  const handleOpenPermissionsSettings = async () => {
     try {
       if (Platform.OS !== 'web' && Linking.openSettings) {
         await Linking.openSettings();
       } else {
         showAlert(
-          'Dil Ayarları',
-          'Cihazınızın Ayarlar menüsünden uygulama dilini değiştirebilirsiniz.'
+          tx("Uygulama İzinleri"),
+          tx("Cihazınızın Ayarlar > Lumière Sucrée menüsünden bildirim, kamera ve fotoğraf erişim izinlerinizi yönetebilirsiniz.")
         );
       }
     } catch (err) {
       console.warn('Ayarlar açılamadı:', err);
       showAlert(
-        'Dil Ayarları',
-        'Cihazınızın Ayarlar menüsünden uygulama dilini değiştirebilirsiniz.'
+        tx("Uygulama İzinleri"),
+        tx("Cihazınızın Ayarlar menüsünden uygulamayı bularak izinleri yönetebilirsiniz.")
       );
     }
   };
@@ -337,8 +337,8 @@ export default function ProfilePane({
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         showAlert(
-          'Galeri İzni Gerekli',
-          'Profil fotoğrafı seçebilmek için fotoğraf galerisi erişimine izin vermelisiniz.'
+          tx("Galeri İzni Gerekli"),
+          tx("Profil fotoğrafı seçebilmek için fotoğraf galerisi erişimine izin vermelisiniz.")
         );
         return;
       }
@@ -357,7 +357,7 @@ export default function ProfilePane({
         setIsPhotoModalOpen(false);
       }
     } catch (err: any) {
-      showAlert('Hata', err?.message || 'Fotoğraf seçilemedi.');
+      showAlert(tx("Hata"), err?.message || tx("Fotoğraf seçilemedi."));
     }
   }, []);
 
@@ -366,8 +366,8 @@ export default function ProfilePane({
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
         showAlert(
-          'Kamera İzni Gerekli',
-          'Profil fotoğrafı çekebilmek için kamera erişimine izin vermelisiniz.'
+          tx("Kamera İzni Gerekli"),
+          tx("Profil fotoğrafı çekebilmek için kamera erişimine izin vermelisiniz.")
         );
         return;
       }
@@ -386,7 +386,7 @@ export default function ProfilePane({
         setIsPhotoModalOpen(false);
       }
     } catch (err: any) {
-      showAlert('Hata', err?.message || 'Fotoğraf çekilemedi.');
+      showAlert(tx("Hata"), err?.message || tx("Fotoğraf çekilemedi."));
     }
   }, []);
 
@@ -410,14 +410,14 @@ export default function ProfilePane({
 
   const handleDeleteAccount = useCallback(() => {
     showAlert(
-      t('profile.deleteConfirmTitle'),
-      t('profile.deleteConfirmDesc'),
+      tx("Hesabınızı Silmek İstediğinize Emin Misiniz?"),
+      tx("Bu işlem kayıtlı tüm pastalarınızı, özel günlerinizi ve kredi bakiyenizi kalıcı olarak sıfırlar."),
       [
-        { text: t('profile.cancel'), style: 'cancel' },
-        { text: t('profile.confirmDelete'), style: 'destructive', onPress: onDeleteAccount },
+        { text: tx("Vazgeç"), style: 'cancel' },
+        { text: tx("Evet, Hesabımı Sil"), style: 'destructive', onPress: onDeleteAccount },
       ],
     );
-  }, [onDeleteAccount, t]);
+  }, [onDeleteAccount]);
 
   return (
     <ScrollView
@@ -428,7 +428,7 @@ export default function ProfilePane({
       <View style={styles.identity}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Profil"
+          accessibilityLabel={tx("Profil")}
           onPress={() => {
             setEditName(userName);
             setIsProfileModalOpen(true);
@@ -458,16 +458,16 @@ export default function ProfilePane({
         <Text style={styles.name}>{userName || name}</Text>
         <View style={styles.memberBadge}>
           <SparkleIcon size={10} color={home.accentGold} />
-          <Text style={styles.memberBadgeText}>Lumière Atelier</Text>
+          <Text style={styles.memberBadgeText}>{tx("Lumière Atelier")}</Text>
         </View>
       </View>
 
       {/* Tasarım & Kredilerim Bölümü */}
-      <Text style={styles.sectionLabel}>BAKİYE & KREDİLER</Text>
+      <Text style={styles.sectionLabel}>{tx("BAKİYE & KREDİLER")}</Text>
       <View style={styles.creditCard}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Kredi detayları ve satın alma"
+          accessibilityLabel={tx("Kredi detayları ve satın alma")}
           onPress={openPurchaseModal}
           style={styles.creditCardBody}
         >
@@ -477,14 +477,12 @@ export default function ProfilePane({
               <View style={styles.creditIconBg}>
                 <CoinsIcon size={17} color={home.accentGold} />
               </View>
-              <Text style={styles.creditTitle} numberOfLines={1}>
-                Tasarım Bakiyesi
-              </Text>
+              <Text style={styles.creditTitle} numberOfLines={1}>{tx("Tasarım Bakiyesi")}</Text>
             </View>
 
             <View style={styles.creditBadge}>
               <SparkleIcon size={10} color={home.accentGold} />
-              <Text style={styles.creditBadgeText}>1 Tasarım = {CREDITS_PER_GENERATION} Kredi</Text>
+              <Text style={styles.creditBadgeText}>{tx("1 Tasarım = {CREDITS_PER_GENERATION} Kredi", { CREDITS_PER_GENERATION })}</Text>
             </View>
           </View>
 
@@ -493,9 +491,9 @@ export default function ProfilePane({
             <View style={styles.creditMetricCol}>
               <View style={styles.metricNumberWrap}>
                 <Text style={styles.metricNumber}>{credits}</Text>
-                <Text style={styles.metricUnit}> Kredi</Text>
+                <Text style={styles.metricUnit}>{tx("Kredi")}</Text>
               </View>
-              <Text style={styles.metricLabel}>Mevcut Bakiyeniz</Text>
+              <Text style={styles.metricLabel}>{tx("Mevcut Bakiyeniz")}</Text>
             </View>
 
             <View style={styles.metricDivider} />
@@ -505,9 +503,9 @@ export default function ProfilePane({
                 <Text style={[styles.metricNumber, { color: home.ctaFrom }]}>
                   {Math.floor(credits / CREDITS_PER_GENERATION)}
                 </Text>
-                <Text style={styles.metricUnit}> Adet</Text>
+                <Text style={styles.metricUnit}>{tx("Adet")}</Text>
               </View>
-              <Text style={styles.metricLabel}>Pasta Tasarım Hakkı</Text>
+              <Text style={styles.metricLabel}>{tx("Pasta Tasarım Hakkı")}</Text>
             </View>
           </View>
         </Pressable>
@@ -515,7 +513,7 @@ export default function ProfilePane({
         {/* Kredi Yükleme Butonu */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Kredi Yükle"
+          accessibilityLabel={tx("Kredi Yükle")}
           onPress={openPurchaseModal}
           android_ripple={{ color: '#FDF6E9' }}
           style={({ pressed }) => [
@@ -531,17 +529,17 @@ export default function ProfilePane({
           >
             <ShineSweep initialDelay={1500} interval={4200} />
             <PlusIcon size={16} color="#F5E6CC" strokeWidth={2.4} />
-            <Text style={styles.buyCreditsButtonText}>Kredi Yükle</Text>
+            <Text style={styles.buyCreditsButtonText}>{tx("Kredi Yükle")}</Text>
           </LinearGradient>
         </Pressable>
       </View>
 
-      <Text style={styles.sectionLabel}>HESAP</Text>
+      <Text style={styles.sectionLabel}>{tx("HESAP")}</Text>
       <View style={styles.card}>
         <Row
           icon={<UserIcon size={19} color={home.accentGold} />}
-          label="Profil & Hesap"
-          subtitle="Kullanıcı adı, e-posta ve bildirimler"
+          label={tx("Profil & Hesap")}
+          subtitle={tx("Kullanıcı adı, e-posta ve bildirimler")}
           onPress={() => {
             setEditName(userName);
             setIsProfileModalOpen(true);
@@ -550,30 +548,30 @@ export default function ProfilePane({
         />
       </View>
 
-      <Text style={styles.sectionLabel}>UYGULAMA</Text>
+      <Text style={styles.sectionLabel}>{tx("UYGULAMA")}</Text>
       <View style={styles.card}>
         <Row
           icon={<AlertCircleIcon size={18} color={home.ink} />}
-          label="Sorun Bildir"
-          subtitle="Geri bildirim ve hata bildirimi"
+          label={tx("Sorun Bildir")}
+          subtitle={tx("Geri bildirim ve hata bildirimi")}
           onPress={() => setActiveSheet('report')}
         />
         <Row
           icon={<HelpCircleIcon size={18} color={home.ink} />}
-          label="Yardım Merkezi"
-          subtitle="Sıkça sorulan sorular & rehber"
+          label={tx("Yardım Merkezi")}
+          subtitle={tx("Sıkça sorulan sorular & rehber")}
           onPress={() => setActiveSheet('help')}
         />
         <Row
           icon={<ShieldIcon size={18} color={home.ink} />}
-          label="Gizlilik Merkezi"
-          subtitle="Kişisel veriler ve güvenlik"
+          label={tx("Gizlilik Merkezi")}
+          subtitle={tx("Kişisel veriler ve güvenlik")}
           onPress={() => setActiveSheet('privacy')}
         />
         <Row
           icon={<InfoIcon size={18} color={home.ink} />}
-          label="Hakkında"
-          subtitle="Lumière Sucrée • Haute Pâtisserie"
+          label={tx("Hakkında")}
+          subtitle={tx("Lumière Sucrée • Haute Pâtisserie")}
           onPress={() => setActiveSheet('about')}
           isLast
         />
@@ -581,13 +579,13 @@ export default function ProfilePane({
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Çıkış Yap"
+        accessibilityLabel={tx("Çıkış Yap")}
         onPress={onSignOut}
         android_ripple={{ color: home.divider }}
         style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed]}
       >
         <LogOutIcon size={18} color={home.ink} />
-        <Text style={styles.signOutLabel}>Çıkış Yap</Text>
+        <Text style={styles.signOutLabel}>{tx("Çıkış Yap")}</Text>
       </Pressable>
 
       {/* Profil Detay ve Ayarlar Sayfası (Tam Sayfa) */}
@@ -609,7 +607,7 @@ export default function ProfilePane({
           <View style={[styles.modalHeader, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Geri"
+              accessibilityLabel={tx("Geri")}
               onPress={() => setIsProfileModalOpen(false)}
               hitSlop={10}
               style={styles.circleBtn}
@@ -618,7 +616,7 @@ export default function ProfilePane({
             </Pressable>
 
             <View style={styles.modalHeaderCenter}>
-              <Text style={styles.modalHeaderTitle}>Profil</Text>
+              <Text style={styles.modalHeaderTitle}>{tx("Profil")}</Text>
             </View>
 
             <View style={styles.modalHeaderPlaceholder} />
@@ -637,7 +635,7 @@ export default function ProfilePane({
             <View style={styles.profileHeroSection}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Profil fotoğrafı değiştir"
+                accessibilityLabel={tx("Profil fotoğrafı değiştir")}
                 onPress={() => setIsPhotoModalOpen(true)}
                 style={styles.avatarPressable}
               >
@@ -656,7 +654,7 @@ export default function ProfilePane({
                         transition={200}
                       />
                     ) : (
-                      <Text style={styles.avatarInitial}>{userName.charAt(0) || 'A'}</Text>
+                      <Text style={styles.avatarInitial}>{userName.charAt(0) || tx("A")}</Text>
                     )}
                   </View>
                 </LinearGradient>
@@ -664,18 +662,18 @@ export default function ProfilePane({
                   <CameraIcon size={12} color="#FFFDF9" strokeWidth={2.2} />
                 </View>
               </Pressable>
-              <Text style={styles.profileHeroSub}>Fotoğrafa dokunarak değiştirebilirsiniz</Text>
+              <Text style={styles.profileHeroSub}>{tx("Fotoğrafa dokunarak değiştirebilirsiniz")}</Text>
             </View>
 
             {/* 1. Kullanıcı Adı (İsterse değiştirebilir) */}
-            <Text style={styles.fieldLabel}>KULLANICI ADI</Text>
+            <Text style={styles.fieldLabel}>{tx("KULLANICI ADI")}</Text>
             <View style={styles.fieldCard}>
               <View style={styles.inputRow}>
                 <TextInput
                   style={styles.textInput}
                   value={editName}
                   onChangeText={setEditName}
-                  placeholder="Kullanıcı Adı"
+                  placeholder={tx("Kullanıcı Adı")}
                   placeholderTextColor={home.muted}
                   autoCapitalize="words"
                   maxLength={35}
@@ -683,7 +681,7 @@ export default function ProfilePane({
                 {editName.trim() !== userName && (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Adı Kaydet"
+                    accessibilityLabel={tx("Adı Kaydet")}
                     onPress={handleSaveName}
                     disabled={isSavingName}
                     style={({ pressed }) => [
@@ -692,23 +690,23 @@ export default function ProfilePane({
                     ]}
                   >
                     <CheckIcon size={14} color="#FFFDF9" strokeWidth={2.4} />
-                    <Text style={styles.inlineSaveBtnText}>Kaydet</Text>
+                    <Text style={styles.inlineSaveBtnText}>{tx("Kaydet")}</Text>
                   </Pressable>
                 )}
               </View>
             </View>
 
             {/* 2. E-posta & Bağlı Hesap */}
-            <Text style={styles.fieldLabel}>E-POSTA</Text>
+            <Text style={styles.fieldLabel}>{tx("E-POSTA")}</Text>
             <View style={styles.fieldCard}>
               {/* E-posta Satırı */}
               <View style={styles.fieldCardRow}>
                 <View style={styles.fieldCardLeftGroup}>
                   <MailIcon size={18} color={home.accentGold} />
-                  <Text style={styles.fieldCardLabel}>E-posta</Text>
+                  <Text style={styles.fieldCardLabel}>{tx("E-posta")}</Text>
                 </View>
                 <Text style={styles.fieldCardValue} numberOfLines={1}>
-                  {maskEmail(email)}
+                  {maskEmail(email) || '—'}
                 </Text>
               </View>
 
@@ -724,49 +722,22 @@ export default function ProfilePane({
                         <AppleIcon size={18} color={home.ink} />
                       )}
                       <Text style={styles.fieldCardLabel}>
-                        {resolvedProvider === 'google' ? 'Google' : 'Apple'}
+                        {resolvedProvider === 'google' ? tx("Google") : tx("Apple")}
                       </Text>
                     </View>
-                    <Text style={styles.fieldCardValue}>Bağlandı</Text>
+                    <Text style={styles.fieldCardValue}>{tx("Bağlandı")}</Text>
                   </View>
                 </>
               )}
             </View>
 
-            {/* 3. Uygulama: Dil ve Bildirimler (Tek kart içerisinde birleşik) */}
-            <Text style={styles.fieldLabel}>UYGULAMA</Text>
+            {/* 3. Uygulama: Bildirimler */}
+            <Text style={styles.fieldLabel}>{tx("UYGULAMA")}</Text>
             <View style={styles.fieldCard}>
-              {/* Dil Seçeneği */}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Dil Seçimi"
-                onPress={handleOpenLanguageSettings}
-                android_ripple={{ color: home.divider }}
-                style={({ pressed }) => [
-                  styles.fieldCardInnerPressable,
-                  pressed && styles.fieldCardRowPressed,
-                ]}
-              >
-                <View style={styles.fieldCardRow}>
-                  <View style={styles.fieldCardLeftGroup}>
-                    <GlobeIcon size={18} color={home.accentGold} />
-                    <Text style={styles.fieldCardLabel}>Dil</Text>
-                  </View>
-                  <View style={styles.fieldCardRightGroup}>
-                    <Text style={styles.fieldCardValue}>
-                      {currentLanguageInfo?.nativeName || 'Türkçe'}
-                    </Text>
-                    <ChevronRightIcon size={18} color={home.muted} />
-                  </View>
-                </View>
-              </Pressable>
-
-              <View style={styles.fieldCardDivider} />
-
               {/* Bildirimler Seçeneği */}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Bildirim Ayarları"
+                accessibilityLabel={tx("Bildirim Ayarları")}
                 onPress={handleOpenNotificationSettings}
                 android_ripple={{ color: home.divider }}
                 style={({ pressed }) => [
@@ -777,24 +748,43 @@ export default function ProfilePane({
                 <View style={styles.fieldCardRow}>
                   <View style={styles.fieldCardLeftGroup}>
                     <BellIcon size={18} color={home.accentGold} />
-                    <Text style={styles.fieldCardLabel}>Bildirimler</Text>
+                    <Text style={styles.fieldCardLabel}>{tx("Bildirimler")}</Text>
+                  </View>
+                  <ChevronRightIcon size={18} color={home.muted} />
+                </View>
+              </Pressable>
+
+              <View style={styles.fieldCardDivider} />
+
+              {/* İzinler Seçeneği */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={tx("Uygulama İzinleri")}
+                onPress={handleOpenPermissionsSettings}
+                android_ripple={{ color: home.divider }}
+                style={({ pressed }) => [
+                  styles.fieldCardInnerPressable,
+                  pressed && styles.fieldCardRowPressed,
+                ]}
+              >
+                <View style={styles.fieldCardRow}>
+                  <View style={styles.fieldCardLeftGroup}>
+                    <ShieldIcon size={18} color={home.accentGold} />
+                    <Text style={styles.fieldCardLabel}>{tx("İzinler")}</Text>
                   </View>
                   <ChevronRightIcon size={18} color={home.muted} />
                 </View>
               </Pressable>
             </View>
-
             {/* Ayırıcı ve Uyarı */}
             <View style={styles.modalSpacer} />
 
             {/* 4. En Altta: Hesabı Sil */}
             <View style={styles.dangerZone}>
-              <Text style={styles.dangerWarning}>
-                Hesabınızı sildiğinizde kalan tüm kredileriniz, kayıtlı pastalarınız ve verileriniz kalıcı olarak silinir. Bu işlem geri alınamaz.
-              </Text>
+              <Text style={styles.dangerWarning}>{tx("Hesabınızı sildiğinizde kalan tüm kredileriniz, kayıtlı pastalarınız ve verileriniz kalıcı olarak silinir. Bu işlem geri alınamaz.")}</Text>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Hesabı Sil"
+                accessibilityLabel={tx("Hesabı Sil")}
                 onPress={() => {
                   setIsProfileModalOpen(false);
                   handleDeleteAccount();
@@ -803,64 +793,10 @@ export default function ProfilePane({
                 style={({ pressed }) => [styles.deleteBtn, pressed && styles.deleteBtnPressed]}
               >
                 <TrashIcon size={17} color={home.danger} />
-                <Text style={styles.deleteBtnLabel}>Hesabı Sil</Text>
+                <Text style={styles.deleteBtnLabel}>{tx("Hesabı Sil")}</Text>
               </Pressable>
             </View>
           </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Dil Seçimi Modalı */}
-      <Modal
-        visible={isLanguageModalOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setIsLanguageModalOpen(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <Pressable style={styles.modalBackdropPressable} onPress={() => setIsLanguageModalOpen(false)} />
-          <View style={styles.languageModalCard}>
-            <View style={styles.languageModalHeader}>
-              <View style={styles.languageTitleRow}>
-                <GlobeIcon size={18} color={home.accentGold} />
-                <Text style={styles.languageModalTitle}>{t('profile.languageLabel')}</Text>
-              </View>
-              <Pressable
-                hitSlop={10}
-                style={styles.closeBtn}
-                onPress={() => setIsLanguageModalOpen(false)}
-              >
-                <CloseIcon size={18} color={home.muted} />
-              </Pressable>
-            </View>
-
-            {languages.map((lang, idx) => {
-              const isSelected = lang.code === language;
-              return (
-                <Pressable
-                  key={lang.code}
-                  style={[
-                    styles.langItem,
-                    idx < languages.length - 1 && styles.langItemDivider,
-                    isSelected && styles.langItemSelected,
-                  ]}
-                  onPress={() => {
-                    setLanguage(lang.code);
-                    setIsLanguageModalOpen(false);
-                  }}
-                >
-                  <Text style={styles.langFlag}>{lang.flag}</Text>
-                  <View style={styles.langInfo}>
-                    <Text style={[styles.langNativeName, isSelected && styles.langTextActive]}>
-                      {lang.nativeName}
-                    </Text>
-                    <Text style={styles.langEnglishName}>{lang.name}</Text>
-                  </View>
-                  {isSelected && <CheckIcon size={18} color={home.gold} strokeWidth={2.5} />}
-                </Pressable>
-              );
-            })}
-          </View>
         </View>
       </Modal>
 
@@ -880,7 +816,7 @@ export default function ProfilePane({
             <View style={styles.photoModalHeader}>
               <View style={styles.photoTitleRow}>
                 <CameraIcon size={18} color={home.accentGold} strokeWidth={2} />
-                <Text style={styles.photoModalTitle}>Profil Fotoğrafı</Text>
+                <Text style={styles.photoModalTitle}>{tx("Profil Fotoğrafı")}</Text>
               </View>
               <Pressable
                 hitSlop={10}
@@ -891,9 +827,7 @@ export default function ProfilePane({
               </Pressable>
             </View>
 
-            <Text style={styles.photoModalSub}>
-              Profilinize yeni bir görsel eklemek için bir yöntem seçin.
-            </Text>
+            <Text style={styles.photoModalSub}>{tx("Profilinize yeni bir görsel eklemek için bir yöntem seçin.")}</Text>
 
             <View style={styles.photoOptionsList}>
               <Pressable
@@ -905,8 +839,8 @@ export default function ProfilePane({
                   <ImageIcon size={19} color={home.accentGold} />
                 </View>
                 <View style={styles.photoOptionTextCol}>
-                  <Text style={styles.photoOptionTitle}>Galeriden Fotoğraf Seç</Text>
-                  <Text style={styles.photoOptionDesc}>Cihazınızdaki fotoğraflardan seçin</Text>
+                  <Text style={styles.photoOptionTitle}>{tx("Galeriden Fotoğraf Seç")}</Text>
+                  <Text style={styles.photoOptionDesc}>{tx("Cihazınızdaki fotoğraflardan seçin")}</Text>
                 </View>
                 <ChevronRightIcon size={16} color={home.muted} />
               </Pressable>
@@ -920,8 +854,8 @@ export default function ProfilePane({
                   <CameraIcon size={19} color={home.accentGold} />
                 </View>
                 <View style={styles.photoOptionTextCol}>
-                  <Text style={styles.photoOptionTitle}>Kamera ile Çek</Text>
-                  <Text style={styles.photoOptionDesc}>Yeni bir fotoğraf çekin</Text>
+                  <Text style={styles.photoOptionTitle}>{tx("Kamera ile Çek")}</Text>
+                  <Text style={styles.photoOptionDesc}>{tx("Yeni bir fotoğraf çekin")}</Text>
                 </View>
                 <ChevronRightIcon size={16} color={home.muted} />
               </Pressable>
@@ -936,10 +870,8 @@ export default function ProfilePane({
                     <TrashIcon size={17} color="#D9534F" />
                   </View>
                   <View style={styles.photoOptionTextCol}>
-                    <Text style={[styles.photoOptionTitle, { color: '#D9534F' }]}>
-                      Mevcut Fotoğrafı Kaldır
-                    </Text>
-                    <Text style={styles.photoOptionDesc}>Varsayılan baş harfe geri dönün</Text>
+                    <Text style={[styles.photoOptionTitle, { color: '#D9534F' }]}>{tx("Mevcut Fotoğrafı Kaldır")}</Text>
+                    <Text style={styles.photoOptionDesc}>{tx("Varsayılan baş harfe geri dönün")}</Text>
                   </View>
                 </Pressable>
               )}
@@ -1316,77 +1248,8 @@ const styles = StyleSheet.create({
   modalBackdropPressable: {
     ...StyleSheet.absoluteFill,
   },
-  languageModalCard: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: home.cardGradFrom,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: home.cardBorderRich,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  languageModalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: home.divider,
-  },
-  languageTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  languageModalTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: home.ink,
-    fontFamily: fonts.display,
-  },
   closeBtn: {
     padding: 4,
-  },
-  langItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 13,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  langItemDivider: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: home.divider,
-  },
-  langItemSelected: {
-    backgroundColor: 'rgba(239, 224, 198, 0.35)',
-  },
-  langFlag: {
-    fontSize: 22,
-    marginRight: 14,
-  },
-  langInfo: {
-    flex: 1,
-  },
-  langNativeName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: home.ink,
-  },
-  langEnglishName: {
-    fontSize: 12,
-    color: home.muted,
-    marginTop: 1,
-  },
-  langTextActive: {
-    color: home.gold,
-    fontWeight: '700',
   },
   photoModalCard: {
     width: '100%',

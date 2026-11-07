@@ -24,6 +24,8 @@ import {
 import { CakeDetails, CakeKind } from '../types/savedCake';
 import { evaluateBudget } from '../utils/budgetHelper';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 interface Props {
   visible: boolean;
@@ -39,13 +41,13 @@ type SheetTab = 'order' | 'recipe';
 
 function calculateMouldSpec(tiers: number, guests: number): string {
   if (tiers >= 3 || guests >= 60) {
-    return 'Alt: Ø 26 cm · Orta: Ø 20 cm · Üst: Ø 14 cm';
+    return tx("Alt: Ø 26 cm · Orta: Ø 20 cm · Üst: Ø 14 cm");
   }
   if (tiers === 2 || guests >= 30) {
-    return 'Alt: Ø 22 cm · Üst: Ø 16 cm';
+    return tx("Alt: Ø 22 cm · Üst: Ø 16 cm");
   }
   if (guests >= 20) {
-    return 'Tek Kat: Ø 22 cm (Yüksek Kesim: 14 cm)';
+    return tx("Tek Kat: Ø 22 cm (Yüksek Kesim: 14 cm)");
   }
   return 'Tek Kat: Ø 18 cm (Butik Kesim: 12 cm)';
 }
@@ -59,6 +61,7 @@ export default function PastryOrderSheetModal({
   imageUri,
   details,
 }: Props) {
+  useTx();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<SheetTab>('order');
   const [copied, setCopied] = useState(false);
@@ -75,21 +78,21 @@ export default function PastryOrderSheetModal({
   const portionMultiplier = portionWeight / 130;
   const scaleFactor = Math.max(0.6, Math.round(((guests / 15) * portionMultiplier) * 10) / 10);
 
-  const flavorText = details?.flavor || 'Madagaskar Vanilyalı & Badem Unlu';
-  const coatingText = details?.coating || 'İsviçre Mereng Tereyağlı Krema & Beyaz Ganaj';
-  const paletteText = details?.color || 'Fildişi, Şampanya & Altın';
+  const flavorText = details?.flavor || tx("Madagaskar Vanilyalı & Badem Unlu");
+  const coatingText = details?.coating || tx("İsviçre Mereng Tereyağlı Krema & Beyaz Ganaj");
+  const paletteText = details?.color || tx("Fildişi, Şampanya & Altın");
   const shapeText = details?.shape || 'Klasik Silindirik';
   const decorLevel = details?.decor || 'Dengeli Haute Pâtisserie';
   const fillingsText =
     details?.fillingTags && details.fillingTags.length > 0
       ? details.fillingTags.join(', ')
-      : 'Orman Meyveli Kompote & Beyaz Çikolatalı Muslin Krema';
+      : tx("Orman Meyveli Kompote & Beyaz Çikolatalı Muslin Krema");
   const accentsText = [
     ...(details?.decorTags || []),
     ...(details?.metallicTags || []),
     ...(details?.textureTags || []),
     ...(details?.finishTags || []),
-  ].join(' · ') || 'El yapımı şeker çiçekler & zarif dokunuşlar';
+  ].join(' · ') || tx("El yapımı şeker çiçekler & zarif dokunuşlar");
 
   const mouldSpec = useMemo(() => calculateMouldSpec(tiers, guests), [tiers, guests]);
 
@@ -105,52 +108,52 @@ export default function PastryOrderSheetModal({
     return {
       ingredients: [
         {
-          group: '1. Pandispanya & Kek Bazı',
+          group: tx("1. Pandispanya & Kek Bazı"),
           items: [
-            `${flourGr} g pastacılık unu (elenmiş) — ${flavorText} uyumlu`,
-            `${sugarGr} g ince kristal toz şeker`,
-            `${eggsCount} adet oda sıcaklığında organik yumurta`,
-            `${Math.round(butterGr * 0.45)} g eritilmiş tereyağı & 120 ml tam yağlı süt`,
-            '1 tatlı kaşığı saf vanilya özütü & 1 paket kabartma tozu',
+            tx("{flourGr} g pastacılık unu (elenmiş) — {flavorText} uyumlu", { flourGr, flavorText }),
+            tx("{sugarGr} g ince kristal toz şeker", { sugarGr }),
+            tx("{eggsCount} adet oda sıcaklığında organik yumurta", { eggsCount }),
+            tx("{p0} g eritilmiş tereyağı & 120 ml tam yağlı süt", { p0: Math.round(butterGr * 0.45) }),
+            tx("1 tatlı kaşığı saf vanilya özütü & 1 paket kabartma tozu"),
           ],
         },
         {
-          group: '2. İç Krema & Dolgu Katmanı',
+          group: tx("2. İç Krema & Dolgu Katmanı"),
           items: [
-            `${creamMl} ml %35 yağlı sıvı krema (soğuk çırpılmış)`,
-            `${Math.round(chocGr * 0.6)} g kuvertür çikolata / pastacı kreması bazı`,
-            `${fillingGr} g iç dolgu malzemesi (${fillingsText})`,
+            tx("{creamMl} ml %35 yağlı sıvı krema (soğuk çırpılmış)", { creamMl }),
+            tx("{p0} g kuvertür çikolata / pastacı kreması bazı", { p0: Math.round(chocGr * 0.6) }),
+            tx("{fillingGr} g iç dolgu malzemesi ({fillingsText})", { fillingGr, fillingsText }),
           ],
         },
         {
-          group: '3. Dış Mantolama & Dekorasyon',
+          group: tx("3. Dış Mantolama & Dekorasyon"),
           items: [
-            `Dış Sıvama: ${coatingText} (${chocGr} g baz + ${butterGr} g tuzsuz tereyağı)`,
-            `Renk Paleti: ${paletteText} (jel gıda boyası / doğal renklendirici)`,
-            `Süsleme Detayları: ${accentsText}`,
+            tx("Dış Sıvama: {coatingText} ({chocGr} g baz + {butterGr} g tuzsuz tereyağı)", { coatingText, chocGr, butterGr }),
+            tx("Renk Paleti: {paletteText} (jel gıda boyası / doğal renklendirici)", { paletteText }),
+            tx("Süsleme Detayları: {accentsText}", { accentsText }),
           ],
         },
       ],
       steps: [
         {
           step: '01',
-          title: 'Pandispanya Pişirme & Dinlendirme',
-          desc: `Yumurta ve şekeri 8 dakika boyunca hacmi 3 katına çıkana dek çırpın. Kuru malzemeleri spatula ile alttan üste katlayarak yedirin ve ${mouldSpec} çemberlerde 170°C fanlı fırında pişirin. Streçleyip 1 gece +4°C'de dinlendirin.`,
+          title: tx("Pandispanya Pişirme & Dinlendirme"),
+          desc: tx("Yumurta ve şekeri 8 dakika boyunca hacmi 3 katına çıkana dek çırpın. Kuru malzemeleri spatula ile alttan üste katlayarak yedirin ve {mouldSpec} çemberlerde 170°C fanlı fırında pişirin. Streçleyip 1 gece +4°C'de dinlendirin.", { mouldSpec }),
         },
         {
           step: '02',
-          title: 'Katmanlama & Dolgu Montajı',
-          desc: `Kek patlarını eşit kalınlıkta kesin. Çember içerisine asetat kağıdı yerleştirip her katta krema barajı (dam) oluşturun ve ortasına "${fillingsText}" dolgusunu yayın.`,
+          title: tx("Katmanlama & Dolgu Montajı"),
+          desc: tx("Kek patlarını eşit kalınlıkta kesin. Çember içerisine asetat kağıdı yerleştirip her katta krema barajı (dam) oluşturun ve ortasına \"{fillingsText}\" dolgusunu yayın.", { fillingsText }),
         },
         {
           step: '03',
-          title: 'Kırıntı Sıvama (Crumb Coat) & Ana Kaplama',
-          desc: `Montajı biten pastayı 2 saat soğutun. İnce bir kat kırıntı sıvaması yapıp 30 dakika dondurucuda sabitleyin, ardından "${coatingText}" ile "${paletteText}" tonlarında pürüzsüz bitiş sağlayın.`,
+          title: tx("Kırıntı Sıvama (Crumb Coat) & Ana Kaplama"),
+          desc: tx("Montajı biten pastayı 2 saat soğutun. İnce bir kat kırıntı sıvaması yapıp 30 dakika dondurucuda sabitleyin, ardından \"{coatingText}\" ile \"{paletteText}\" tonlarında pürüzsüz bitiş sağlayın.", { coatingText, paletteText }),
         },
         {
           step: '04',
-          title: 'Haute Pâtisserie Süsleme & Sunum',
-          desc: `${tiers > 1 ? 'Katlar arasına gizli pasta kolonları (dowel) ve ara taban yerleştirerek katları üst üste sabitleyin. ' : ''}${accentsText} detaylarını yerleştirerek son dokunuşu tamamlayın.`,
+          title: tx("Haute Pâtisserie Süsleme & Sunum"),
+          desc: tx("{p0}{accentsText} detaylarını yerleştirerek son dokunuşu tamamlayın.", { p0: tiers > 1 ? 'Katlar arasına gizli pasta kolonları (dowel) ve ara taban yerleştirerek katları üst üste sabitleyin. ' : '', accentsText }),
         },
       ],
     };
@@ -158,38 +161,38 @@ export default function PastryOrderSheetModal({
 
   const formattedShareText = useMemo(() => {
     const lines = [
-      `🎂 LUMIÈRE SUCRÉE — PASTACI SİPARİŞ FİŞİ`,
+      tx("🎂 LUMIÈRE SUCRÉE — PASTACI SİPARİŞ FİŞİ"),
       `━━━━━━━━━━━━━━━━━━━━`,
       `• Kategori: ${title}`,
-      `• Kapasite: ~${guests} Kişilik (${tiers} Katlı)`,
-      `• Kalıp Ölçüsü: ${mouldSpec}`,
-      `• Şekil: ${shapeText}`,
+      tx("• Kapasite: ~{guests} Kişilik ({tiers} Katlı)", { guests, tiers }),
+      tx("• Kalıp Ölçüsü: {mouldSpec}", { mouldSpec }),
+      tx("• Şekil: {shapeText}", { shapeText }),
       `• Kek & Aroma: ${flavorText}`,
-      `• İç Dolgu: ${fillingsText}`,
-      `• Dış Kaplama: ${coatingText}`,
+      tx("• İç Dolgu: {fillingsText}", { fillingsText }),
+      tx("• Dış Kaplama: {coatingText}", { coatingText }),
       `• Renk Paleti: ${paletteText}`,
-      `• Süsleme Yoğunluğu: ${decorLevel}`,
+      tx("• Süsleme Yoğunluğu: {decorLevel}", { decorLevel }),
       `• Dekoratif Detaylar: ${accentsText}`,
     ];
     if (details?.budget) {
-      lines.push(`• Belirtilen Bütçe: ${details.budget.toLocaleString()} ${budgetEval.currency.symbol} (~${Math.round(details.budget / guests).toLocaleString()} ${budgetEval.currency.symbol}/kişi)`);
-      lines.push(`• Bütçe Seviyesi: ${budgetEval.badgeLabel}`);
-      lines.push(`• Porsiyon Ağırlığı: ~${portionWeight} g/kişi (Toplam ~${Math.round((guests * portionWeight) / 100) / 10} kg)`);
+      lines.push(tx("• Belirtilen Bütçe: {p0} {symbol} (~{p2} {p3}/kişi)", { p0: details.budget.toLocaleString(), symbol: budgetEval.currency.symbol, p2: Math.round(details.budget / guests).toLocaleString(), p3: budgetEval.currency.symbol }));
+      lines.push(tx("• Bütçe Seviyesi: {badgeLabel}", { badgeLabel: budgetEval.badgeLabel }));
+      lines.push(tx("• Porsiyon Ağırlığı: ~{portionWeight} g/kişi (Toplam ~{p1} kg)", { portionWeight, p1: Math.round((guests * portionWeight) / 100) / 10 }));
       if (budgetEval.pastryAdvice) {
-        lines.push(`• Pastacı İçin Bütçe Notu: ${budgetEval.pastryAdvice}`);
+        lines.push(tx("• Pastacı İçin Bütçe Notu: {pastryAdvice}", { pastryAdvice: budgetEval.pastryAdvice }));
       }
     }
     if (details?.writing) {
-      lines.push(`• Pasta Üzeri Yazı: "${details.writing}"`);
+      lines.push(tx("• Pasta Üzeri Yazı: \"{writing}\"", { writing: details.writing }));
     }
     if (details?.dietTags && details.dietTags.length > 0) {
       lines.push(`• Diyet / Hassasiyet: ${details.dietTags.join(', ')}`);
     }
     if (details?.customNotes) {
-      lines.push(`• Özel Not: ${details.customNotes}`);
+      lines.push(tx("• Özel Not: {customNotes}", { customNotes: details.customNotes }));
     }
     lines.push(`━━━━━━━━━━━━━━━━━━━━`);
-    lines.push(`✨ Tasarım Özeti:\n${prompt}`);
+    lines.push(tx("✨ Tasarım Özeti:\n{prompt}", { prompt }));
     return lines.join('\n');
   }, [
     title,
@@ -221,12 +224,12 @@ export default function PastryOrderSheetModal({
     try {
       if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.share) {
         await navigator.share({
-          title: `${title} — Sipariş Fişi`,
+          title: tx("{title} — Sipariş Fişi", { title }),
           text: formattedShareText,
         });
       } else {
         await Share.share({
-          title: `${title} — Sipariş Fişi`,
+          title: tx("{title} — Sipariş Fişi", { title }),
           message: formattedShareText,
         });
       }
@@ -254,7 +257,7 @@ export default function PastryOrderSheetModal({
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Kapat"
+            accessibilityLabel={tx("Kapat")}
             onPress={onClose}
             hitSlop={10}
             style={styles.closeBtn}
@@ -263,15 +266,13 @@ export default function PastryOrderSheetModal({
           </Pressable>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerSuper}>ATELIER LUMIÈRE SUCRÉE</Text>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              Sipariş Fişi & Şef Reçetesi
-            </Text>
+            <Text style={styles.headerSuper}>{tx("ATELIER LUMIÈRE SUCRÉE")}</Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{tx("Sipariş Fişi & Şef Reçetesi")}</Text>
           </View>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Kopyala"
+            accessibilityLabel={tx("Kopyala")}
             onPress={handleCopy}
             hitSlop={10}
             style={styles.closeBtn}
@@ -302,9 +303,7 @@ export default function PastryOrderSheetModal({
                   styles.tabBtnText,
                   activeTab === 'order' && styles.tabBtnTextActive,
                 ]}
-              >
-                Pastacı Sipariş Fişi
-              </Text>
+              >{tx("Pastacı Sipariş Fişi")}</Text>
             </Pressable>
 
             <Pressable
@@ -322,9 +321,7 @@ export default function PastryOrderSheetModal({
                   styles.tabBtnText,
                   activeTab === 'recipe' && styles.tabBtnTextActive,
                 ]}
-              >
-                AI Malzeme & Tarif
-              </Text>
+              >{tx("AI Malzeme & Tarif")}</Text>
             </Pressable>
           </View>
         </View>
@@ -355,14 +352,12 @@ export default function PastryOrderSheetModal({
             <View style={styles.dossierInfo}>
               <View style={styles.dossierBadge}>
                 <SparkleIcon size={11} color={home.accentGold} />
-                <Text style={styles.dossierBadgeText}>FICHE TECHNIQUE</Text>
+                <Text style={styles.dossierBadgeText}>{tx("FICHE TECHNIQUE")}</Text>
               </View>
               <Text style={styles.dossierTitle} numberOfLines={1}>
                 {details?.templateTitle || title}
               </Text>
-              <Text style={styles.dossierSub}>
-                ~{guests} Kişilik · {tiers} Katlı · {shapeText}
-              </Text>
+              <Text style={styles.dossierSub}>{tx("~{guests} Kişilik · {tiers} Katlı · {shapeText}", { guests, tiers, shapeText })}</Text>
             </View>
           </View>
 
@@ -371,60 +366,54 @@ export default function PastryOrderSheetModal({
               {/* Teknik Spesifikasyon Fişi */}
               <View style={styles.paperTicket}>
                 <View style={styles.ticketHeader}>
-                  <Text style={styles.ticketTitle}>PASTANE ÜRETİM DETAYLARI</Text>
+                  <Text style={styles.ticketTitle}>{tx("PASTANE ÜRETİM DETAYLARI")}</Text>
                   <Text style={styles.ticketCode}>#{String(guests * tiers + 104).padStart(4, '0')}</Text>
                 </View>
 
                 <View style={styles.specRow}>
-                  <Text style={styles.specLabel}>Porsiyon & Kat</Text>
-                  <Text style={styles.specValue}>
-                    {guests} Kişilik ({tiers} Katlı)
-                  </Text>
+                  <Text style={styles.specLabel}>{tx("Porsiyon & Kat")}</Text>
+                  <Text style={styles.specValue}>{tx("{guests} Kişilik ({tiers} Katlı)", { guests, tiers })}</Text>
                 </View>
 
                 {details?.budget ? (
                   <View style={styles.specRow}>
-                    <Text style={styles.specLabel}>Müşteri Bütçesi</Text>
-                    <Text style={styles.specValueHighlight}>
-                      {details.budget.toLocaleString()} {budgetEval.currency.symbol} (~{Math.round(details.budget / guests).toLocaleString()} {budgetEval.currency.symbol}/kişi)
-                    </Text>
+                    <Text style={styles.specLabel}>{tx("Müşteri Bütçesi")}</Text>
+                    <Text style={styles.specValueHighlight}>{tx("{p0} {symbol} (~{p2} {p3}/kişi)", { p0: details.budget.toLocaleString(), symbol: budgetEval.currency.symbol, p2: Math.round(details.budget / guests).toLocaleString(), p3: budgetEval.currency.symbol })}</Text>
                   </View>
                 ) : null}
 
                 <View style={styles.specRow}>
-                  <Text style={styles.specLabel}>Porsiyon Gramajı</Text>
-                  <Text style={styles.specValue}>
-                    ~{portionWeight} g / Porsiyon (Toplam: ~{Math.round((guests * portionWeight) / 100) / 10} kg)
-                  </Text>
+                  <Text style={styles.specLabel}>{tx("Porsiyon Gramajı")}</Text>
+                  <Text style={styles.specValue}>{tx("~{portionWeight} g / Porsiyon (Toplam: ~{p1} kg)", { portionWeight, p1: Math.round((guests * portionWeight) / 100) / 10 })}</Text>
                 </View>
 
                 <View style={styles.specRow}>
-                  <Text style={styles.specLabel}>Önerilen Çember</Text>
+                  <Text style={styles.specLabel}>{tx("Önerilen Çember")}</Text>
                   <Text style={styles.specValue}>{mouldSpec}</Text>
                 </View>
 
                 <View style={styles.specRow}>
-                  <Text style={styles.specLabel}>Kek & Aroma Bazı</Text>
+                  <Text style={styles.specLabel}>{tx("Kek & Aroma Bazı")}</Text>
                   <Text style={styles.specValue}>{flavorText}</Text>
                 </View>
 
                 <View style={styles.specRow}>
-                  <Text style={styles.specLabel}>İç Dolgu Katmanı</Text>
+                  <Text style={styles.specLabel}>{tx("İç Dolgu Katmanı")}</Text>
                   <Text style={styles.specValue}>{fillingsText}</Text>
                 </View>
 
                 <View style={styles.specRow}>
-                  <Text style={styles.specLabel}>Dış Kaplama</Text>
+                  <Text style={styles.specLabel}>{tx("Dış Kaplama")}</Text>
                   <Text style={styles.specValue}>{coatingText}</Text>
                 </View>
 
                 <View style={styles.specRow}>
-                  <Text style={styles.specLabel}>Renk Paleti</Text>
+                  <Text style={styles.specLabel}>{tx("Renk Paleti")}</Text>
                   <Text style={styles.specValue}>{paletteText}</Text>
                 </View>
 
                 <View style={styles.specRow}>
-                  <Text style={styles.specLabel}>Süsleme & Dokular</Text>
+                  <Text style={styles.specLabel}>{tx("Süsleme & Dokular")}</Text>
                   <Text style={styles.specValue}>
                     {decorLevel} — {accentsText}
                   </Text>
@@ -432,36 +421,34 @@ export default function PastryOrderSheetModal({
 
                 {details?.writing ? (
                   <View style={styles.specRow}>
-                    <Text style={styles.specLabel}>Üzerindeki Yazı</Text>
+                    <Text style={styles.specLabel}>{tx("Üzerindeki Yazı")}</Text>
                     <Text style={styles.specValueHighlight}>"{details.writing}"</Text>
                   </View>
                 ) : null}
 
                 {details?.dietTags && details.dietTags.length > 0 ? (
                   <View style={styles.specRow}>
-                    <Text style={styles.specLabel}>Diyet / Alerjen</Text>
+                    <Text style={styles.specLabel}>{tx("Diyet / Alerjen")}</Text>
                     <Text style={styles.specValue}>{details.dietTags.join(', ')}</Text>
                   </View>
                 ) : null}
 
                 {details?.customNotes ? (
                   <View style={[styles.specRow, styles.specRowLast]}>
-                    <Text style={styles.specLabel}>Özel Şef Notu</Text>
+                    <Text style={styles.specLabel}>{tx("Özel Şef Notu")}</Text>
                     <Text style={styles.specValue}>{details.customNotes}</Text>
                   </View>
                 ) : null}
 
                 {details?.budget && budgetEval.pastryAdvice ? (
                   <View style={styles.budgetPastryNoteBox}>
-                    <Text style={styles.budgetPastryNoteLabel}>PASTACI İÇİN BÜTÇE OPTİMİZASYON TÜYOSU</Text>
+                    <Text style={styles.budgetPastryNoteLabel}>{tx("PASTACI İÇİN BÜTÇE OPTİMİZASYON TÜYOSU")}</Text>
                     <Text style={styles.budgetPastryNoteText}>{budgetEval.pastryAdvice}</Text>
                   </View>
                 ) : null}
 
                 <View style={styles.ticketFooterNote}>
-                  <Text style={styles.ticketFooterText}>
-                    Bu fişi pastanenize göstererek veya WhatsApp üzerinden ileterek görseldeki tasarımın birebir üretimini talep edebilirsiniz.
-                  </Text>
+                  <Text style={styles.ticketFooterText}>{tx("Bu fişi pastanenize göstererek veya WhatsApp üzerinden ileterek görseldeki tasarımın birebir üretimini talep edebilirsiniz.")}</Text>
                 </View>
               </View>
             </>
@@ -470,9 +457,7 @@ export default function PastryOrderSheetModal({
               {/* AI Şefin Malzeme & Tarif Rehberi */}
               <View style={styles.paperTicket}>
                 <View style={styles.ticketHeader}>
-                  <Text style={styles.ticketTitle}>
-                    ÖLÇEKLENMİŞ MALZEME LİSTESİ ({guests} KİŞİLİK)
-                  </Text>
+                  <Text style={styles.ticketTitle}>{tx("ÖLÇEKLENMİŞ MALZEME LİSTESİ ({guests} KİŞİLİK)", { guests })}</Text>
                 </View>
 
                 {recipeData.ingredients.map((group) => (
@@ -490,7 +475,7 @@ export default function PastryOrderSheetModal({
 
               <View style={[styles.paperTicket, { marginTop: 16 }]}>
                 <View style={styles.ticketHeader}>
-                  <Text style={styles.ticketTitle}>ADIM ADIM ATÖLYE REHBERİ</Text>
+                  <Text style={styles.ticketTitle}>{tx("ADIM ADIM ATÖLYE REHBERİ")}</Text>
                 </View>
 
                 {recipeData.steps.map((s, idx) => (
@@ -505,8 +490,8 @@ export default function PastryOrderSheetModal({
                       <Text style={styles.stepBadgeText}>{s.step}</Text>
                     </View>
                     <View style={styles.stepBody}>
-                      <Text style={styles.stepTitle}>{s.title}</Text>
-                      <Text style={styles.stepDesc}>{s.desc}</Text>
+                      <Text style={styles.stepTitle}>{tx(s.title)}</Text>
+                      <Text style={styles.stepDesc}>{tx(s.desc)}</Text>
                     </View>
                   </View>
                 ))}
@@ -518,35 +503,29 @@ export default function PastryOrderSheetModal({
           <View style={styles.bottomActions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Sipariş Fişini Paylaş"
+              accessibilityLabel={tx("Sipariş Fişini Paylaş")}
               onPress={handleShareSheet}
               style={styles.primaryShareBtn}
             >
               <ShareIcon size={17} color="#FFFDF9" />
-              <Text style={styles.primaryShareBtnText}>
-                Pastacıya Gönder / Paylaş
-              </Text>
+              <Text style={styles.primaryShareBtnText}>{tx("Pastacıya Gönder / Paylaş")}</Text>
             </Pressable>
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Panoya Kopyala"
+              accessibilityLabel={tx("Panoya Kopyala")}
               onPress={handleCopy}
               style={styles.secondaryCopyBtn}
             >
               {copied ? (
                 <>
                   <CheckIcon size={16} color="#2E7D32" />
-                  <Text style={[styles.secondaryCopyBtnText, { color: '#2E7D32' }]}>
-                    Sipariş Fişi Kopyalandı!
-                  </Text>
+                  <Text style={[styles.secondaryCopyBtnText, { color: '#2E7D32' }]}>{tx("Sipariş Fişi Kopyalandı!")}</Text>
                 </>
               ) : (
                 <>
                   <CopyIcon size={16} color={home.ink} />
-                  <Text style={styles.secondaryCopyBtnText}>
-                    Metin Olarak Kopyala
-                  </Text>
+                  <Text style={styles.secondaryCopyBtnText}>{tx("Metin Olarak Kopyala")}</Text>
                 </>
               )}
             </Pressable>

@@ -1,5 +1,7 @@
 import { ENV, hasAIBackend, isGeminiConfigured } from '../config/env';
+import { AI_CONSENT_REQUIRED, hasAiConsent } from './aiConsentService';
 import type { ImageQuality } from '../types/savedCake';
+import { buildImagePrompt, guardReferenceImage } from '../../server/prompt-guard';
 
 function toImageSize(quality: ImageQuality) {
   return quality === '4k' ? '4K' : '2K';
@@ -12,34 +14,26 @@ export type GenerateImageResult = {
 };
 
 /**
- * Nano Banana Pro için stüdyo kalitesinde hiper-gerçekçi pastacılık fotoğrafçılığı prompt zenginleştiricisi
+ * Görsel prompt'u: kullanıcı açıklaması talimatlardan ayrı bir blokta durur
+ * (server/prompt-guard.js — sunucuyla aynı metin).
  */
 function buildEnhancedPrompt(userPrompt: string, hasReference = false): string {
-  const multimodalGuidance = hasReference
-    ? ' EXTREMELY IMPORTANT MULTIMODAL INSTRUCTION: Carefully examine the attached inspiration photo (such as fabric texture, color palette, graphic motif, or stationery style). Harmoniously incorporate its exact color palette, motifs, textures, and aesthetic styling into the cake decorations, frosting, and presentation without adding extraneous unrequested items.'
-    : '';
+  return buildImagePrompt(userPrompt, hasReference);
+}
 
-  const lower = userPrompt.toLocaleLowerCase('tr-TR');
-  const mentionsFlowers =
-    lower.includes('çiçek') ||
-    lower.includes('cicek') ||
-    lower.includes('gül') ||
-    lower.includes('gul') ||
-    lower.includes('papatya') ||
-    lower.includes('orkide') ||
-    lower.includes('floral') ||
-    lower.includes('flower') ||
-    lower.includes('rose') ||
-    lower.includes('blossom') ||
-    lower.includes('şakayık') ||
-    lower.includes('sakayik') ||
-    lower.includes('botanik');
+/**
+ * Gemini görsel yerine boş/metin yanıt döndürdüğünde (çoğunlukla ek isteklerdeki
+ * bir ifade güvenlik filtresine takıldığında) kullanıcıya ne yapacağını söyler.
+ */
+function describeMissingImage(data: any): string {
+  const blockReason: string | undefined = data?.promptFeedback?.blockReason;
+  const finishReason: string | undefined = data?.candidates?.[0]?.finishReason;
+  const reason = blockReason || finishReason || '';
 
-  const flowerConstraint = mentionsFlowers
-    ? ''
-    : ' CRITICAL NEGATIVE CONSTRAINT - NO FLOWERS: Flowers are NOT requested in the prompt. Do NOT add any flowers, sugar flowers, edible roses, floral accents, petals, leaves, or botanical decorations anywhere on or around the cake. The cake surface must remain completely free of flowers.';
-
-  return `Professional high-end gourmet culinary food photography of an exquisite handcrafted cake: ${userPrompt}.${multimodalGuidance} Studio lighting, award-winning pastry chef presentation, hyperrealistic texture, clean elegant background, shallow depth of field, 8k resolution. STRICT FIDELITY RULE: Adhere 100% strictly and exclusively to the user description. Do NOT add any unrequested decorations, unrequested toppings, unrequested pearls, unrequested figurines, or unrequested embellishments. Only depict what is explicitly written in the prompt.${flowerConstraint} KATI KURAL: Yazılanların kesinlikle dışına çıkma; metinde belirtilmeyen hiçbir süsleme, çiçek veya detayı ekleme.`;
+  if (/SAFETY|PROHIBITED|BLOCKLIST|SPII|RECITATION|OTHER/i.test(reason)) {
+    return tx("Yapay zeka bu açıklamayla görsel oluşturmadı. Ek isteklerinde gerçek kişi, marka, logo veya hassas bir ifade varsa çıkarıp tekrar dene.");
+  }
+  return tx("Yapay zeka bu sefer görsel döndürmedi. Ek isteklerini biraz daha sade yazıp tekrar dene.");
 }
 
 /**
@@ -63,7 +57,6 @@ async function generateViaBackendProxy(
       },
       body: JSON.stringify({
         prompt,
-        model: ENV.GEMINI_IMAGE_MODEL,
         referenceImageBase64,
         imageSize: toImageSize(quality),
       }),
@@ -74,12 +67,12 @@ async function generateViaBackendProxy(
       if (response.status === 429) {
         return {
           success: false,
-          error: err?.message || 'Çok fazla pasta tasarlama isteği gönderildi. Lütfen 1 dakika sonra tekrar deneyiniz.',
+          error: err?.message || tx("Çok fazla pasta tasarlama isteği gönderildi. Lütfen 1 dakika sonra tekrar deneyiniz."),
         };
       }
       return {
         success: false,
-        error: err?.error || err?.message || `Sunucu Hatası (${response.status})`,
+        error: err?.error || err?.message || tx("Sunucu Hatası ({status})", { status: response.status }),
       };
     }
 
@@ -87,7 +80,7 @@ async function generateViaBackendProxy(
     if (!data?.imageUri) {
       return {
         success: false,
-        error: 'Sunucu geçerli bir görsel bağlantısı döndürmedi.',
+        error: tx("Sunucu geçerli bir görsel bağlantısı döndürmedi."),
       };
     }
 
@@ -98,7 +91,7 @@ async function generateViaBackendProxy(
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || 'Güvenli AI sunucusuna bağlanılamadı.',
+      error: err?.message || tx("Güvenli AI sunucusuna bağlanılamadı."),
     };
   }
 }
@@ -146,14 +139,14 @@ async function generateDirectGemini(
         const err = await response.json().catch(() => ({}));
         return {
           success: false,
-          error: err?.error?.message || `API Hatası: ${response.status}`,
+          error: err?.error?.message || tx("API Hatası: {status}", { status: response.status }),
         };
       }
 
       const data = await response.json();
       const prediction = data?.predictions?.[0];
       if (!prediction?.bytesBase64Encoded) {
-        return { success: false, error: 'Görsel verisi API yanıtında bulunamadı.' };
+        return { success: false, error: tx("Görsel verisi API yanıtında bulunamadı.") };
       }
 
       const mimeType = prediction.mimeType || 'image/jpeg';
@@ -168,9 +161,10 @@ async function generateDirectGemini(
 
     const parts: any[] = [{ text: enhancedPrompt }];
     if (referenceImageBase64) {
+      const reference = guardReferenceImage(referenceImageBase64);
       parts.push({
         inlineData: {
-          mimeType: 'image/jpeg',
+          mimeType: reference.ok && reference.mimeType ? reference.mimeType : 'image/jpeg',
           data: referenceImageBase64,
         },
       });
@@ -199,7 +193,7 @@ async function generateDirectGemini(
       const err = await response.json().catch(() => ({}));
       return {
         success: false,
-        error: err?.error?.message || `Gemini API Hatası (${response.status}: ${response.statusText})`,
+        error: err?.error?.message || tx("Gemini API Hatası ({status}: {statusText})", { status: response.status, statusText: response.statusText }),
       };
     }
 
@@ -222,12 +216,12 @@ async function generateDirectGemini(
 
     return {
       success: false,
-      error: 'Gemini yanıtında görsel parçası bulunamadı.',
+      error: describeMissingImage(data),
     };
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || 'Ağ bağlantı hatası oluştu.',
+      error: err?.message || tx("Ağ bağlantı hatası oluştu."),
     };
   }
 }
@@ -244,6 +238,7 @@ const SLO_LATENCY_ALERT_MS = 15000; // 15 saniyeyi aşan üretimlerde SLO uyarı
  * @param quality 'standard' = 2K, '4k' = 4K çıktı
  */
 import { validatePromptSafety } from '../utils/security';
+import { tx } from '../i18n/tx';
 
 export async function generateCakeImage(
   prompt: string,
@@ -252,15 +247,29 @@ export async function generateCakeImage(
 ): Promise<GenerateImageResult> {
   const startTime = Date.now();
 
+  // Kullanıcı yapay zeka veri paylaşımına izin vermediyse hiçbir veri gönderilmez (Apple 5.1.2(i)).
+  if (!(await hasAiConsent())) {
+    return { success: false, error: AI_CONSENT_REQUIRED };
+  }
+
   // İSTEMCİ GÜVENLİK KALKANI: XSS ve Prompt Injection Doğrulaması
   const promptCheck = validatePromptSafety(prompt);
   if (!promptCheck.isSafe) {
     return {
       success: false,
-      error: 'Güvenlik Uyarısı: Girilen metin sistem güvenlik ilkelerine uygun değildir.',
+      error:
+        promptCheck.userMessage ||
+        tx("Güvenlik Uyarısı: Girilen metin sistem güvenlik ilkelerine uygun değildir."),
     };
   }
   const safePrompt = promptCheck.sanitizedText;
+
+  // İlham fotoğrafı gerçek bir görsel mi? (sahte dosya / aşırı büyük dosya engeli)
+  const imageCheck = guardReferenceImage(referenceImageBase64);
+  if (!imageCheck.ok) {
+    return { success: false, error: imageCheck.message };
+  }
+  referenceImageBase64 = imageCheck.data ?? undefined;
 
   addBreadcrumb('ai_generation', 'Pasta görseli üretimi başlatıldı', {
     promptLength: safePrompt.length,
@@ -315,7 +324,7 @@ export async function generateCakeImage(
     });
     return {
       success: false,
-      error: (err as any)?.message || 'Yapay zeka üretim hatası oluştu.',
+      error: (err as any)?.message || tx("Yapay zeka üretim hatası oluştu."),
     };
   }
 }

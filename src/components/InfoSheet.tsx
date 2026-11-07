@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChevronRightIcon, CloseIcon } from './Icons';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
 
 type Props = {
   visible: boolean;
@@ -34,18 +35,7 @@ export default function InfoSheet({ visible, title, subtitle, onClose, children 
         />
 
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
-          <View style={styles.headerSide} />
-          <View style={styles.headerCenter}>
-            <Text style={styles.title} numberOfLines={1}>
-              {title}
-            </Text>
-            {subtitle && (
-              <Text style={styles.subtitle} numberOfLines={1}>
-                {subtitle}
-              </Text>
-            )}
-          </View>
-          <View style={[styles.headerSide, styles.headerSideRight]}>
+          <View style={[styles.headerSide, styles.headerSideLeft]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Kapat"
@@ -56,6 +46,17 @@ export default function InfoSheet({ visible, title, subtitle, onClose, children 
               <CloseIcon size={19} color={home.ink} />
             </Pressable>
           </View>
+          <View style={styles.headerCenter}>
+            <Text style={styles.title} numberOfLines={1}>
+              {tx(title)}
+            </Text>
+            {subtitle && (
+              <Text style={styles.subtitle} numberOfLines={1}>
+                {tx(subtitle)}
+              </Text>
+            )}
+          </View>
+          <View style={styles.headerSide} />
         </View>
 
         <ScrollView
@@ -87,7 +88,7 @@ export function SheetRow({ icon, label, detail, onPress, isLast }: SheetRowProps
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={tx(label)}
       onPress={onPress}
       android_ripple={{ color: home.divider }}
       style={({ pressed }) => [
@@ -98,8 +99,8 @@ export function SheetRow({ icon, label, detail, onPress, isLast }: SheetRowProps
     >
       <View style={sheetStyles.rowIcon}>{icon}</View>
       <View style={sheetStyles.rowText}>
-        <Text style={sheetStyles.rowLabel}>{label}</Text>
-        {detail && <Text style={sheetStyles.rowDetail}>{detail}</Text>}
+        <Text style={sheetStyles.rowLabel}>{tx(label)}</Text>
+        {detail && <Text style={sheetStyles.rowDetail}>{tx(detail)}</Text>}
       </View>
       <ChevronRightIcon size={17} color={home.muted} />
     </Pressable>
@@ -190,6 +191,9 @@ const styles = StyleSheet.create({
   },
   headerSide: {
     width: 40,
+  },
+  headerSideLeft: {
+    alignItems: 'flex-start',
   },
   headerSideRight: {
     alignItems: 'flex-end',

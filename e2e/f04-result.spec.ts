@@ -1,4 +1,4 @@
-import { expect, generateButton, choosePalette, openBuilder, readCredits, seedCredits, signIn, test } from './helpers';
+import { DESIGN_COST, expect, generateButton, choosePalette, openBuilder, readCredits, seedCredits, signIn, test } from './helpers';
 
 test.describe('F04 sonuç işlemleri', () => {
   test.beforeEach(async ({ page }) => {
@@ -16,8 +16,8 @@ test.describe('F04 sonuç işlemleri', () => {
     await page.getByRole('button', { name: 'Düzenlemeyi Uygula' }).click();
     await expect(page.getByText(/DÜZENLEME TALİMATI/)).toBeVisible();
     expect(gemini.calls).toBe(2);
-    // 40 - 20 (ilk tasarım) - 20 (düzenleme) = 0
-    expect(await readCredits(page)).toBe(0);
+    // 40 - ilk tasarım - düzenleme
+    expect(await readCredits(page)).toBe(40 - 2 * DESIGN_COST);
   });
 
   test('F04-H2 tam ekran görüntüleyici açılır ve kapanır', async ({ page }) => {
@@ -37,7 +37,7 @@ test.describe('F04 sonuç işlemleri', () => {
     await page.getByRole('button', { name: 'Düzenle' }).click();
     await expect(page.getByRole('button', { name: 'Düzenlemeyi Uygula' })).toHaveAttribute('aria-disabled', 'true');
     expect(gemini.calls).toBe(1);
-    // 40 - 20 (ilk tasarım); boş düzenleme kredi harcatmaz
-    expect(await readCredits(page)).toBe(20);
+    // 40 - ilk tasarım; boş düzenleme kredi harcatmaz
+    expect(await readCredits(page)).toBe(40 - DESIGN_COST);
   });
 });

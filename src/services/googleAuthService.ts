@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { type AppleUser } from './appleAuthService';
+import { tx } from '../i18n/tx';
 
 // Web ortamında auth session'ı tamamlamak için
 WebBrowser.maybeCompleteAuthSession();
@@ -50,7 +51,7 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
   if (!supabaseUrl || !supabaseAnonKey) {
     return {
       success: false,
-      error: 'Supabase bağlantı bilgileri (.env) bulunamadı.',
+      error: tx("Supabase bağlantı bilgileri (.env) bulunamadı."),
     };
   }
 
@@ -74,12 +75,12 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
       if (result.type === 'cancel' || result.type === 'dismiss') {
         return {
           success: false,
-          error: 'Giriş işlemi iptal edildi.',
+          error: tx("Giriş işlemi iptal edildi."),
         };
       }
       return {
         success: false,
-        error: 'Google yetkilendirme yanıtı alınamadı.',
+        error: tx("Google yetkilendirme yanıtı alınamadı."),
       };
     }
 
@@ -92,7 +93,7 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
       const errorDescription = params['error_description'] || params['error'];
       return {
         success: false,
-        error: errorDescription || 'Google erişim belirteci (access_token) alınamadı.',
+        error: errorDescription || tx("Google erişim belirteci (access_token) alınamadı."),
       };
     }
 
@@ -105,7 +106,7 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
     });
 
     if (!userResponse.ok) {
-      throw new Error(`Kullanıcı bilgisi alınamadı (${userResponse.status})`);
+      throw new Error(tx("Kullanıcı bilgisi alınamadı ({status})", { status: userResponse.status }));
     }
 
     const userData = await userResponse.json();
@@ -115,7 +116,7 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
       meta.full_name ||
       meta.name ||
       [meta.given_name, meta.family_name].filter(Boolean).join(' ') ||
-      'Google Kullanıcısı';
+      tx("Google Kullanıcısı");
 
     const authUser: AppleUser = {
       id: userData.id,
@@ -133,7 +134,7 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
     console.error('[GoogleAuth] Hata:', err);
     return {
       success: false,
-      error: err?.message || 'Google ile giriş yapılırken beklenmedik bir hata oluştu.',
+      error: err?.message || tx("Google ile giriş yapılırken beklenmedik bir hata oluştu."),
     };
   }
 }

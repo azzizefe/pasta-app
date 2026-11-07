@@ -14,6 +14,8 @@ import CakeDetailModal from './CakeDetailModal';
 import CakeImage from './CakeImage';
 import { CakeDetails, CakeKind, SavedCake, SavedCakeFilter } from '../types/savedCake';
 import { fonts, home } from '../theme/theme';
+import { getTxLocale, tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 interface Props {
   onOpenBuilder: (kind: CakeKind, details?: CakeDetails) => void;
@@ -30,6 +32,7 @@ const FILTERS: { id: SavedCakeFilter; label: string }[] = [
 ];
 
 export default function SavedPane({ onOpenBuilder }: Props) {
+  useTx();
   const {
     savedCakes,
     filteredCakes,
@@ -46,7 +49,7 @@ export default function SavedPane({ onOpenBuilder }: Props) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={home.ink} />
-        <Text style={styles.loadingText}>Koleksiyon yükleniyor...</Text>
+        <Text style={styles.loadingText}>{tx("Koleksiyon yükleniyor...")}</Text>
       </View>
     );
   }
@@ -55,9 +58,9 @@ export default function SavedPane({ onOpenBuilder }: Props) {
     <View style={styles.root}>
       {/* Başlık ve Sayaç */}
       <View style={styles.titleRow}>
-        <Text style={styles.title}>Koleksiyonum</Text>
+        <Text style={styles.title}>{tx("Koleksiyonum")}</Text>
         <View style={styles.countBadge}>
-          <Text style={styles.countText}>{savedCakes.length} Tasarım</Text>
+          <Text style={styles.countText}>{tx("{length} Tasarım", { length: savedCakes.length })}</Text>
         </View>
       </View>
 
@@ -90,7 +93,7 @@ export default function SavedPane({ onOpenBuilder }: Props) {
                       isActive && styles.filterChipTextActive,
                     ]}
                   >
-                    {f.label}
+                    {tx(f.label)}
                   </Text>
                 </Pressable>
               );
@@ -105,31 +108,26 @@ export default function SavedPane({ onOpenBuilder }: Props) {
           <View style={styles.emptyIconRing}>
             <BookmarkIcon size={32} color={home.accentGold} />
           </View>
-          <Text style={styles.emptyTitle}>Koleksiyonun Henüz Boş</Text>
-          <Text style={styles.emptySubtitle}>
-            Yapay zeka ile tasarladığın tüm eşsiz pastalar burada saklanır.
-            Hayalindeki pastayı hemen oluşturmaya başla!
-          </Text>
+          <Text style={styles.emptyTitle}>{tx("Koleksiyonun Henüz Boş")}</Text>
+          <Text style={styles.emptySubtitle}>{tx("Yapay zeka ile tasarladığın tüm eşsiz pastalar burada saklanır. Hayalindeki pastayı hemen oluşturmaya başla!")}</Text>
           <Pressable
             accessibilityRole="button"
             onPress={() => onOpenBuilder('wedding')}
             style={styles.emptyCta}
           >
             <SparkleIcon size={17} color="#FFFDF9" />
-            <Text style={styles.emptyCtaText}>İlk Pastanı Tasarla</Text>
+            <Text style={styles.emptyCtaText}>{tx("İlk Pastanı Tasarla")}</Text>
           </Pressable>
         </View>
       ) : filteredCakes.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Tasarım Bulunamadı</Text>
-          <Text style={styles.emptySubtitle}>
-            Seçtiğin filtrede henüz kaydedilmiş bir pasta bulunmuyor.
-          </Text>
+          <Text style={styles.emptyTitle}>{tx("Tasarım Bulunamadı")}</Text>
+          <Text style={styles.emptySubtitle}>{tx("Seçtiğin filtrede henüz kaydedilmiş bir pasta bulunmuyor.")}</Text>
           <Pressable
             onPress={() => setFilter('all')}
             style={styles.clearFilterButton}
           >
-            <Text style={styles.clearFilterText}>Filtreyi Temizle</Text>
+            <Text style={styles.clearFilterText}>{tx("Filtreyi Temizle")}</Text>
           </Pressable>
         </View>
       ) : (
@@ -141,7 +139,7 @@ export default function SavedPane({ onOpenBuilder }: Props) {
           <View style={styles.grid}>
             {filteredCakes.map((cake) => {
               const formattedDate = new Date(cake.createdAt).toLocaleDateString(
-                'tr-TR',
+                getTxLocale(),
                 {
                   day: 'numeric',
                   month: 'short',
@@ -192,7 +190,7 @@ export default function SavedPane({ onOpenBuilder }: Props) {
                       {cake.kind === 'diy' && (
                         <View style={styles.cardRecipeBadge}>
                           <ChefHatIcon size={11} color="#FFFDF9" />
-                          <Text style={styles.cardRecipeBadgeText}>Şef Tarifi</Text>
+                          <Text style={styles.cardRecipeBadgeText}>{tx("Şef Tarifi")}</Text>
                         </View>
                       )}
                     </View>
@@ -200,14 +198,14 @@ export default function SavedPane({ onOpenBuilder }: Props) {
                     {/* Bilgiler */}
                     <View style={styles.cardBody}>
                       <Text style={styles.cardTitle} numberOfLines={1}>
-                        {cake.title}
+                        {tx(cake.title)}
                       </Text>
 
                       <View style={styles.cardMeta}>
                         <Text style={styles.cardTag}>
                           {cake.kind === 'diy'
-                            ? (cake.details?.tier ? `${cake.details.tier} Katlı • Tarifli` : 'Şefin Özel Tarifi')
-                            : (cake.details?.tier ? `${cake.details.tier} Katlı` : 'Özel Tasarım')}
+                            ? (cake.details?.tier ? tx("{tier} Katlı • Tarifli", { tier: cake.details.tier }) : tx("Şefin Özel Tarifi"))
+                            : (cake.details?.tier ? tx("{tier} Katlı", { tier: cake.details.tier }) : tx("Özel Tasarım"))}
                         </Text>
                         <Text style={styles.cardDate}>{formattedDate}</Text>
                       </View>

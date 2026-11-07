@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, openBuilder, signIn, test } from './helpers';
+import { expect, openBuilder, signIn, test, WELCOME_CREDITS } from './helpers';
 
 async function scan(page: import('@playwright/test').Page) {
   const result = await new AxeBuilder({ page }).analyze();
@@ -13,7 +13,7 @@ test.describe('Erişilebilirlik (axe)', () => {
 
   test('F01-E3 giriş ekranı', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Google ile Giriş Yap' })).toBeVisible();
     expect(await scan(page)).toEqual([]);
   });
 
@@ -30,7 +30,7 @@ test.describe('Erişilebilirlik (axe)', () => {
 
   test('Kredilerim ekranı', async ({ page }) => {
     await signIn(page);
-    await page.getByRole('button', { name: 'Kredi bakiyesi 30' }).click();
+    await page.getByRole('button', { name: `Kredi bakiyesi ${WELCOME_CREDITS}` }).click();
     await expect(page.getByText('Kredilerim')).toBeVisible();
     expect(await scan(page)).toEqual([]);
   });

@@ -12,6 +12,8 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CameraIcon, CloseIcon, ImageIcon, SparkleIcon } from './Icons';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 type Props = {
   imageUri: string | null;
@@ -29,6 +31,7 @@ export default function ReferenceImagePicker({
   onImageSelected,
   onImageRemoved,
 }: Props) {
+  useTx();
   const [isLoading, setIsLoading] = useState(false);
 
   const handlePickGallery = async () => {
@@ -37,8 +40,8 @@ export default function ReferenceImagePicker({
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         showAlert(
-          'Galeri İzni Gerekli',
-          'İlham fotoğrafı seçebilmek için fotoğraf galerisi erişimine izin vermelisiniz.',
+          tx("Galeri İzni Gerekli"),
+          tx("İlham fotoğrafı seçebilmek için fotoğraf galerisi erişimine izin vermelisiniz."),
         );
         return;
       }
@@ -58,7 +61,7 @@ export default function ReferenceImagePicker({
         }
       }
     } catch (err: any) {
-      showAlert('Hata', err?.message || 'Fotoğraf seçilemedi.');
+      showAlert(tx("Hata"), err?.message || tx("Fotoğraf seçilemedi."));
     } finally {
       setIsLoading(false);
     }
@@ -70,8 +73,8 @@ export default function ReferenceImagePicker({
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
         showAlert(
-          'Kamera İzni Gerekli',
-          'İlham fotoğrafı çekebilmek için kamera erişimine izin vermelisiniz.',
+          tx("Kamera İzni Gerekli"),
+          tx("İlham fotoğrafı çekebilmek için kamera erişimine izin vermelisiniz."),
         );
         return;
       }
@@ -90,7 +93,7 @@ export default function ReferenceImagePicker({
         }
       }
     } catch (err: any) {
-      showAlert('Hata', err?.message || 'Fotoğraf çekilemedi.');
+      showAlert(tx("Hata"), err?.message || tx("Fotoğraf çekilemedi."));
     } finally {
       setIsLoading(false);
     }
@@ -109,14 +112,12 @@ export default function ReferenceImagePicker({
         </View>
         <View style={styles.headerTextCol}>
           <View style={styles.titleRow}>
-            <Text style={styles.title}>İlham Fotoğrafı</Text>
+            <Text style={styles.title}>{tx("İlham Fotoğrafı")}</Text>
             <View style={styles.optionalPill}>
-              <Text style={styles.optionalPillText}>İSTEĞE BAĞLI</Text>
+              <Text style={styles.optionalPillText}>{tx("İSTEĞE BAĞLI")}</Text>
             </View>
           </View>
-          <Text style={styles.subtitle}>
-            Bir fotoğraf yükle, yapay zekâ renklerini ve desenlerini pastana işlesin.
-          </Text>
+          <Text style={styles.subtitle}>{tx("Bir fotoğraf yükle, yapay zekâ renklerini ve desenlerini pastana işlesin.")}</Text>
         </View>
       </View>
 
@@ -132,7 +133,7 @@ export default function ReferenceImagePicker({
             />
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Fotoğrafı Kaldır"
+              accessibilityLabel={tx("Fotoğrafı Kaldır")}
               onPress={onImageRemoved}
               style={styles.removeButton}
               hitSlop={8}
@@ -144,25 +145,23 @@ export default function ReferenceImagePicker({
           <View style={styles.previewInfo}>
             <View style={styles.analysisBadge}>
               <SparkleIcon size={12} color={home.gold} />
-              <Text style={styles.analysisBadgeText}>Yapay zekâ inceleyecek</Text>
+              <Text style={styles.analysisBadgeText}>{tx("Yapay zekâ inceleyecek")}</Text>
             </View>
-            <Text style={styles.previewHint}>
-              Renk paleti, doku ve motifler pastanın süslemesine aktarılacak.
-            </Text>
+            <Text style={styles.previewHint}>{tx("Renk paleti, doku ve motifler pastanın süslemesine aktarılacak.")}</Text>
             <Pressable
               accessibilityRole="button"
               onPress={handlePickGallery}
               style={({ pressed }) => [styles.changeButton, pressed && styles.pressed]}
             >
               <ImageIcon size={15} color={home.ink} />
-              <Text style={styles.changeButtonText}>Fotoğrafı Değiştir</Text>
+              <Text style={styles.changeButtonText}>{tx("Fotoğrafı Değiştir")}</Text>
             </Pressable>
           </View>
         </View>
       ) : isLoading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="small" color={home.ink} />
-          <Text style={styles.loadingText}>Fotoğraf işleniyor...</Text>
+          <Text style={styles.loadingText}>{tx("Fotoğraf işleniyor...")}</Text>
         </View>
       ) : (
         /* Boş Durum: Galeri veya Kamera */
@@ -170,7 +169,7 @@ export default function ReferenceImagePicker({
           <View style={styles.buttonsRow}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Galeriden Fotoğraf Seç"
+              accessibilityLabel={tx("Galeriden Fotoğraf Seç")}
               onPress={handlePickGallery}
               style={({ pressed }) => [styles.buttonWrap, pressed && styles.pressed]}
             >
@@ -185,15 +184,13 @@ export default function ReferenceImagePicker({
                   style={styles.primaryButtonText}
                   numberOfLines={1}
                   adjustsFontSizeToFit
-                >
-                  Galeriden Seç
-                </Text>
+                >{tx("Galeriden Seç")}</Text>
               </LinearGradient>
             </Pressable>
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Kamera ile Çek"
+              accessibilityLabel={tx("Kamera ile Çek")}
               onPress={handleTakePhoto}
               style={({ pressed }) => [styles.buttonWrap, styles.secondaryButton, pressed && styles.pressed]}
             >
@@ -202,9 +199,7 @@ export default function ReferenceImagePicker({
                 style={styles.secondaryButtonText}
                 numberOfLines={1}
                 adjustsFontSizeToFit
-              >
-                Fotoğraf Çek
-              </Text>
+              >{tx("Fotoğraf Çek")}</Text>
             </Pressable>
           </View>
         </>

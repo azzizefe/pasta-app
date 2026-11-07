@@ -19,6 +19,10 @@ import { AppleIcon, GoogleIcon } from '../components/BrandIcons';
 import { signInWithApple, type AppleUser } from '../services/appleAuthService';
 import { signInWithGoogle } from '../services/googleAuthService';
 import { colors, fonts, spacing } from '../theme/theme';
+import { PRIVACY_URL, TERMS_URL } from '../config/app';
+import { useLanguage } from '../context/LanguageContext';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 /** Wall -> floor -> light falloff, mirroring a studio photo backdrop. */
 const BACKDROP_COLORS = [
@@ -64,8 +68,9 @@ type Props = {
 };
 
 export default function LoginScreen({ onSignIn }: Props) {
+  useTx();
   const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets();
   const [authenticatingProvider, setAuthenticatingProvider] = useState<Provider | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [heroBox, setHeroBox] = useState<{ y: number; height: number } | null>(null);
@@ -98,7 +103,7 @@ export default function LoginScreen({ onSignIn }: Props) {
         setAuthError(result.error);
       }
     } catch (err: any) {
-      setAuthError(err?.message || 'Apple ile giriş sırasında bir hata oluştu.');
+      setAuthError(err?.message || tx("Apple ile giriş sırasında bir hata oluştu."));
     } finally {
       setAuthenticatingProvider(null);
     }
@@ -116,23 +121,22 @@ export default function LoginScreen({ onSignIn }: Props) {
         setAuthError(result.error);
       }
     } catch (err: any) {
-      setAuthError(err?.message || 'Google ile giriş sırasında bir hata oluştu.');
+      setAuthError(err?.message || tx("Google ile giriş sırasında bir hata oluştu."));
     } finally {
       setAuthenticatingProvider(null);
     }
   }, [onSignIn]);
 
   const handleOpenTerms = () => {
-    Linking.openURL('https://www.apple.com/legal/internet-services/itunes/dev/stdeula/').catch(err => {
-      console.warn('Could not open terms:', err);
-    });
+    Linking.openURL(TERMS_URL).catch((err) => console.warn('Could not open terms:', err));
   };
 
   const handleOpenPrivacy = () => {
-    Linking.openURL('https://lumieresucree.app/privacy').catch(() => {
-      Linking.openURL('https://www.apple.com/legal/privacy/');
-    });
+    Linking.openURL(PRIVACY_URL).catch((err) => console.warn('Could not open privacy:', err));
   };
+
+  // Android has no native Apple sign-in; the old fallback signed people in as a fake demo user.
+  const showApple = Platform.OS !== 'android';
 
   return (
     <View style={styles.root}>
@@ -157,31 +161,33 @@ export default function LoginScreen({ onSignIn }: Props) {
               accessibilityIgnoresInvertColors
               accessible
               accessibilityRole="image"
-              accessibilityLabel="Two-tier naked cake with berries and roses"
+              accessibilityLabel={tx("Two-tier naked cake with berries and roses")}
             />
           )}
         </View>
 
         <View style={styles.panel}>
           <Text style={styles.title} allowFontScaling={false}>
-            Welcome Back
+            {tx("Hoş Geldiniz")}
           </Text>
 
           <View style={styles.actions}>
+            {showApple && (
+              <AuthButton
+                label={authenticatingProvider === 'apple' ? tx("Giriş yapılıyor...") : tx("Apple ile Giriş Yap")}
+                icon={
+                  authenticatingProvider === 'apple' ? (
+                    <ActivityIndicator size="small" color="#FFFDF9" />
+                  ) : (
+                    <AppleIcon size={19} />
+                  )
+                }
+                onPress={handleApple}
+                disabled={isAuthenticating}
+              />
+            )}
             <AuthButton
-              label={authenticatingProvider === 'apple' ? 'Giriş Yapılıyor...' : 'Sign in with Apple'}
-              icon={
-                authenticatingProvider === 'apple' ? (
-                  <ActivityIndicator size="small" color="#FFFDF9" />
-                ) : (
-                  <AppleIcon size={19} />
-                )
-              }
-              onPress={handleApple}
-              disabled={isAuthenticating}
-            />
-            <AuthButton
-              label={authenticatingProvider === 'google' ? 'Giriş Yapılıyor...' : 'Sign in with Google'}
+              label={authenticatingProvider === 'google' ? tx("Giriş yapılıyor...") : tx("Google ile Giriş Yap")}
               icon={
                 authenticatingProvider === 'google' ? (
                   <ActivityIndicator size="small" color="#555" />
@@ -191,7 +197,7 @@ export default function LoginScreen({ onSignIn }: Props) {
               }
               onPress={handleGoogle}
               disabled={isAuthenticating}
-              style={styles.stackedButton}
+              style={showApple ? styles.stackedButton : undefined}
             />
           </View>
 
@@ -204,17 +210,15 @@ export default function LoginScreen({ onSignIn }: Props) {
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.lg }]}>
           <Text style={styles.footerText}>
-            By signing up for our app, you agree to
-          </Text>
-          <Text style={styles.footerText}>
-            our{' '}
+            {tx("Devam ederek ")}
             <Text style={styles.footerLink} onPress={handleOpenTerms}>
-              Terms of Use
-            </Text>{' '}
-            and{' '}
-            <Text style={styles.footerLink} onPress={handleOpenPrivacy}>
-              Privacy Policy
+              {tx("Kullanım Koşulları")}
             </Text>
+            {tx(" ve ")}
+            <Text style={styles.footerLink} onPress={handleOpenPrivacy}>
+              {tx("Gizlilik Politikası")}
+            </Text>
+            {tx("’nı kabul etmiş olursunuz.")}
           </Text>
         </View>
       </View>

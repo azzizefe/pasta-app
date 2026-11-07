@@ -12,10 +12,27 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { CakeKind, ImageQuality } from '../types/savedCake';
 
 const STORAGE_KEY = '@lumiere_user_credits_v1';
+const SECOND_CAKE_OFFER_KEY = '@lumiere_second_cake_offer_v1';
+
+/**
+ * The second-cake discount is offered exactly once, ever:
+ * available → offered (shown under the first cake's result)
+ *   → claimed (user tapped the offer) → used (the discounted cake was generated)
+ *   → expired (user left the result screen without tapping it)
+ */
+type SecondCakeOfferStatus = 'available' | 'offered' | 'claimed' | 'used' | 'expired';
+const SECOND_CAKE_OFFER_STATUSES: SecondCakeOfferStatus[] = [
+  'available',
+  'offered',
+  'claimed',
+  'used',
+  'expired',
+];
 // Hoş geldin hediyesi: 15 kredi. Veritabanındaki
 // public.welcome_credits() ile aynı olmalı (supabase/migrations/20261023_hosgeldin_kredisi_30.sql).
 export const INITIAL_CREDITS = 15;
 export const CREDITS_PER_GENERATION = 15;
+export const SECOND_CAKE_DISCOUNT_CREDITS = 10;
 // Display-only "was" price shown struck through next to the real cost (20 krediden 15 krediye)
 export const CREDITS_PER_GENERATION_LIST_PRICE = 20;
 export const CREDITS_PER_GENERATION_4K = 15;
@@ -30,7 +47,10 @@ function toBalance(value: number): number {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
-export function getGenerationCost(_quality?: ImageQuality, kind?: CakeKind) {
+export function getGenerationCost(_quality?: ImageQuality, kind?: CakeKind, isDiscounted?: boolean) {
+  if (isDiscounted) {
+    return SECOND_CAKE_DISCOUNT_CREDITS;
+  }
   if (kind === 'diy') {
     return 15;
   }
@@ -48,6 +68,16 @@ type CreditsContextType = {
   credits: number;
   creditsPerGeneration: number;
   isLoading: boolean;
+  /** The user claimed the one-time offer; their next cake costs 10 credits. */
+  isSecondCakeDiscountActive: boolean;
+  /** The one-time offer card should be shown right now. */
+  isSecondCakeOfferVisible: boolean;
+  /** Call after a cake is generated: shows the offer if it was never shown. */
+  offerSecondCakeDiscount: () => void;
+  claimSecondCakeDiscount: () => void;
+  /** The offer was shown but not taken; it never comes back. */
+  dismissSecondCakeOffer: () => void;
+  consumeSecondCakeDiscount: () => void;
   addCredits: (amount: number) => void;
   deductCredits: (amount?: number) => boolean;
   hasEnoughCredits: (amount?: number) => boolean;
@@ -62,6 +92,51 @@ export function CreditsProvider({ children }: { children: React.ReactNode }) {
   const [credits, setCredits] = useState<number>(INITIAL_CREDITS);
   const [isLoading, setIsLoading] = useState(true);
   const [isPurchaseModalOpen, setIsPurchaseModalOpen] = useState(false);
+  // null until loaded from storage; no transition happens before that.
+  const [secondCakeOffer, setSecondCakeOffer] = useState<SecondCakeOfferStatus | null>(null);
+  const secondCakeOfferRef = useRef<SecondCakeOfferStatus | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(SECOND_CAKE_OFFER_KEY)
+      .then((stored) => {
+        const status = SECOND_CAKE_OFFER_STATUSES.includes(stored as SecondCakeOfferStatus)
+          ? (stored as SecondCakeOfferStatus)
+          : 'available';
+        secondCakeOfferRef.current = status;
+        setSecondCakeOffer(status);
+      })
+      .catch((err) => console.warn('İkinci pasta teklifi yüklenemedi:', err));
+  }, []);
+
+  /** Moves the offer from one status to the next; ignored from any other status. */
+  const moveSecondCakeOffer = useCallback(
+    (from: SecondCakeOfferStatus, to: SecondCakeOfferStatus) => {
+      if (secondCakeOfferRef.current !== from) return;
+      secondCakeOfferRef.current = to;
+      setSecondCakeOffer(to);
+      AsyncStorage.setItem(SECOND_CAKE_OFFER_KEY, to).catch((err) => {
+        console.warn('İkinci pasta teklifi kaydedilemedi:', err);
+      });
+    },
+    [],
+  );
+
+  const offerSecondCakeDiscount = useCallback(
+    () => moveSecondCakeOffer('available', 'offered'),
+    [moveSecondCakeOffer],
+  );
+  const claimSecondCakeDiscount = useCallback(
+    () => moveSecondCakeOffer('offered', 'claimed'),
+    [moveSecondCakeOffer],
+  );
+  const dismissSecondCakeOffer = useCallback(
+    () => moveSecondCakeOffer('offered', 'expired'),
+    [moveSecondCakeOffer],
+  );
+  const consumeSecondCakeDiscount = useCallback(
+    () => moveSecondCakeOffer('claimed', 'used'),
+    [moveSecondCakeOffer],
+  );
 
   // Depolamadan bakiyeyi yükle — AsyncStorage hem native (iOS/Android) hem
   // web'de çalışır, önceki window.localStorage kontrolü sadece web'de
@@ -161,6 +236,12 @@ export function CreditsProvider({ children }: { children: React.ReactNode }) {
         credits,
         creditsPerGeneration: CREDITS_PER_GENERATION,
         isLoading,
+        isSecondCakeDiscountActive: secondCakeOffer === 'claimed',
+        isSecondCakeOfferVisible: secondCakeOffer === 'offered',
+        offerSecondCakeDiscount,
+        claimSecondCakeDiscount,
+        dismissSecondCakeOffer,
+        consumeSecondCakeDiscount,
         addCredits,
         deductCredits,
         hasEnoughCredits,

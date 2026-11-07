@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée에서 케이크 디자인에 영감을 줄 초대장이나 콘셉트 사진을 선택할 수 있습니다.",
+    "NSPhotoLibraryAddUsageDescription": "만든 케이크 디자인을 사진 보관함에 고해상도로 저장하려면 권한이 필요합니다.",
+    "NSCameraUsageDescription": "특별한 날에 영감을 주는 디테일을 촬영해 케이크 디자인으로 만들 수 있습니다."
+  }
+}

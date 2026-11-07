@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée lets you pick invitation or concept photos to inspire your cake designs.",
+    "NSPhotoLibraryAddUsageDescription": "Permission is needed to save the cake designs you create to your photo library in high resolution.",
+    "NSCameraUsageDescription": "Take a photo of the details that inspire you for your special day and turn it into a cake design."
+  }
+}

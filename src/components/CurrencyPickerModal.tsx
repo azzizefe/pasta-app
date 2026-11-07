@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CheckIcon, CloseIcon } from './Icons';
 import { CurrencyConfig, SUPPORTED_CURRENCIES } from '../utils/budgetHelper';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 interface Props {
   visible: boolean;
@@ -27,6 +29,7 @@ export default function CurrencyPickerModal({
   onSelect,
   onClose,
 }: Props) {
+  useTx();
   const insets = useSafeAreaInsets();
 
   return (
@@ -52,14 +55,12 @@ export default function CurrencyPickerModal({
           {/* Başlık ve Kapat Butonu */}
           <View style={styles.header}>
             <View>
-              <Text style={styles.headerTitle}>Para Birimi Seçin</Text>
-              <Text style={styles.headerSubtitle}>
-                Bütçenize göre porsiyon ve maliyet hesaplaması için
-              </Text>
+              <Text style={styles.headerTitle}>{tx("Para Birimi Seçin")}</Text>
+              <Text style={styles.headerSubtitle}>{tx("Bütçenize göre porsiyon ve maliyet hesaplaması için")}</Text>
             </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Kapat"
+              accessibilityLabel={tx("Kapat")}
               onPress={onClose}
               hitSlop={10}
               style={styles.closeBtn}
@@ -101,9 +102,7 @@ export default function CurrencyPickerModal({
                   </View>
 
                   <View style={styles.rowRight}>
-                    <Text style={styles.marketHint}>
-                      Taban ~{item.minBasePrice.toLocaleString()} {item.symbol}
-                    </Text>
+                    <Text style={styles.marketHint}>{tx("Taban ~{p0} {symbol}", { p0: item.minBasePrice.toLocaleString(), symbol: item.symbol })}</Text>
                     {isSelected && (
                       <View style={styles.checkCircle}>
                         <CheckIcon size={14} color="#FFFDF9" strokeWidth={2.4} />

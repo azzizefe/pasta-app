@@ -1,4 +1,5 @@
 import { CakeKind } from './savedCake';
+import { tx } from '../i18n/tx';
 
 export type OccasionType =
   | 'birthday'
@@ -89,10 +90,10 @@ export const REMINDER_OPTIONS: Array<{ days: number; label: string; short: strin
 
 /** "2 hafta", "1 ay", "3 gün": how far ahead a reminder lands, for copy. */
 export function describeLeadTime(days: number): string {
-  if (days === 7) return '1 hafta';
-  if (days === 14) return '2 hafta';
-  if (days === 30) return '1 ay';
-  return `${days} gün`;
+  if (days === 7) return tx('1 hafta');
+  if (days === 14) return tx('2 hafta');
+  if (days === 30) return tx('1 ay');
+  return tx('{n} gün', { n: days });
 }
 
 /**

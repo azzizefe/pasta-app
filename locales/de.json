@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée lässt dich Einladungs- oder Inspirationsfotos auswählen, die deine Tortendesigns inspirieren.",
+    "NSPhotoLibraryAddUsageDescription": "Die Erlaubnis wird benötigt, um deine Tortendesigns in hoher Auflösung in deiner Fotomediathek zu speichern.",
+    "NSCameraUsageDescription": "Fotografiere die Details, die dich für deinen besonderen Tag inspirieren, und verwandle sie in ein Tortendesign."
+  }
+}

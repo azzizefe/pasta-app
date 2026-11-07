@@ -12,6 +12,7 @@ import { showAlert } from '../utils/alert';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CakeImage from './CakeImage';
+import PinchableImageViewer from './PinchableImageViewer';
 import DiyRecipeCard from './DiyRecipeCard';
 import PastryOrderSheetModal from './PastryOrderSheetModal';
 import {
@@ -28,9 +29,12 @@ import {
 } from './Icons';
 import { saveCakeImageToDevice } from '../services/imageSaveService';
 import { generateCakeRecipe } from '../services/geminiRecipeService';
+import { useAiConsentGate } from '../hooks/useAiConsentGate';
 import { useSavedCakes } from '../context/SavedCakesContext';
 import { SavedCake } from '../types/savedCake';
 import { fonts, home } from '../theme/theme';
+import { getTxLocale, tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 interface Props {
   visible: boolean;
@@ -49,23 +53,31 @@ export default function CakeDetailModal({
   onDelete,
   onRemix,
 }: Props) {
+  useTx();
   const insets = useSafeAreaInsets();
   const { updateCake } = useSavedCakes();
   const [copied, setCopied] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isOrderSheetOpen, setIsOrderSheetOpen] = useState(false);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
 
   // Kendi Pastanı Oluştur için AI Şef Tarifi State'i
   const initialRecipe = cake?.recipe || cake?.details?.recipe || null;
   const [recipeText, setRecipeText] = useState<string | null>(initialRecipe);
   const [isRecipeLoading, setIsRecipeLoading] = useState(false);
   const [recipeError, setRecipeError] = useState<string | null>(null);
+  const { ensureAiConsent, consentSheet } = useAiConsentGate();
 
   const handleFetchRecipe = useCallback(async () => {
     if (!cake || cake.kind !== 'diy') return;
     setIsRecipeLoading(true);
     setRecipeError(null);
     try {
+      if (!(await ensureAiConsent())) {
+        setIsRecipeLoading(false);
+        setRecipeError(tx("Tarifi hazırlamak için yapay zeka veri paylaşımına izin vermen gerekiyor."));
+        return;
+      }
       const res = await generateCakeRecipe(cake.prompt, cake.details);
       setIsRecipeLoading(false);
       if (res.success && res.recipe) {
@@ -78,13 +90,13 @@ export default function CakeDetailModal({
           },
         });
       } else {
-        setRecipeError(res.error || 'Tarif oluşturulamadı.');
+        setRecipeError(res.error || tx("Tarif oluşturulamadı."));
       }
     } catch (err: any) {
       setIsRecipeLoading(false);
-      setRecipeError(err?.message || 'Tarif hazırlanırken bir hata oluştu.');
+      setRecipeError(err?.message || tx("Tarif hazırlanırken bir hata oluştu."));
     }
-  }, [cake, updateCake]);
+  }, [cake, updateCake, ensureAiConsent]);
 
   useEffect(() => {
     if (!cake) return;
@@ -105,9 +117,9 @@ export default function CakeDetailModal({
     setIsDownloading(true);
     try {
       const res = await saveCakeImageToDevice(cake.imageUri, cake.title);
-      showAlert(res.success ? 'Başarılı' : 'Bilgi', res.message);
+      showAlert(res.success ? tx("Başarılı") : tx("Bilgi"), res.message);
     } catch (e: any) {
-      showAlert('Hata', 'Görsel kaydedilemedi: ' + (e?.message || 'Bilinmeyen sorun'));
+      showAlert(tx("Hata"), tx("Görsel kaydedilemedi: ") + (e?.message || 'Bilinmeyen sorun'));
     } finally {
       setIsDownloading(false);
     }
@@ -124,12 +136,12 @@ export default function CakeDetailModal({
 
   const handleDeletePrompt = () => {
     showAlert(
-      'Tasarımı Sil',
-      'Bu pasta tasarımını koleksiyonundan silmek istediğine emin misin?',
+      tx("Tasarımı Sil"),
+      tx("Bu pasta tasarımını koleksiyonundan silmek istediğine emin misin?"),
       [
-        { text: 'Vazgeç', style: 'cancel' },
+        { text: tx("Vazgeç"), style: 'cancel' },
         {
-          text: 'Sil',
+          text: tx("Sil"),
           style: 'destructive',
           onPress: () => {
             onDelete(cake.id);
@@ -140,7 +152,7 @@ export default function CakeDetailModal({
     );
   };
 
-  const formattedDate = new Date(cake.createdAt).toLocaleDateString('tr-TR', {
+  const formattedDate = new Date(cake.createdAt).toLocaleDateString(getTxLocale(), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -165,7 +177,7 @@ export default function CakeDetailModal({
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Geri"
+            accessibilityLabel={tx("Geri")}
             onPress={onClose}
             hitSlop={10}
             style={styles.circleBtn}
@@ -173,14 +185,12 @@ export default function CakeDetailModal({
             <ChevronLeftIcon size={20} color={home.ink} strokeWidth={2} />
           </Pressable>
 
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            Tasarım Detayı
-          </Text>
+          <Text style={styles.headerTitle} numberOfLines={1}>{tx("Tasarım Detayı")}</Text>
 
           <View style={styles.headerRight}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Sil"
+              accessibilityLabel={tx("Sil")}
               onPress={handleDeletePrompt}
               hitSlop={10}
               style={[styles.circleBtn, styles.trashBtn]}
@@ -198,8 +208,16 @@ export default function CakeDetailModal({
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Görsel Çerçevesi */}
-          <View style={styles.imageCard}>
+          {/* Görsel Çerçevesi (Büyütmek için dokunulabilir) */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={tx("Görseli büyüt")}
+            onPress={() => setIsZoomOpen(true)}
+            style={({ pressed }) => [
+              styles.imageCard,
+              pressed && styles.imageCardPressed,
+            ]}
+          >
             <CakeImage
               source={{ uri: cake.imageUri }}
               style={styles.image}
@@ -208,45 +226,52 @@ export default function CakeDetailModal({
               showShimmer
             />
             <LinearGradient
-              colors={['transparent', 'rgba(38, 24, 14, 0.6)']}
+              colors={['transparent', 'rgba(38, 24, 14, 0.65)']}
               style={styles.imageOverlay}
             >
               <View style={styles.imageOverlayContent}>
-                <Text style={styles.overlayTitle}>{cake.title}</Text>
+                <Text style={styles.overlayTitle}>{tx(cake.title)}</Text>
                 <Text style={styles.overlayDate}>{formattedDate}</Text>
               </View>
             </LinearGradient>
-          </View>
+          </Pressable>
 
-          {/* Aksiyon Butonları */}
+          {/* Aksiyon Butonları (Dengeli, Taşmayan Düzen) */}
           <View style={styles.actionRow}>
             {onRemix && (
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={tx("Tasarımı Düzenle")}
                 onPress={() => {
                   onClose();
                   onRemix(cake);
                 }}
-                style={styles.remixButton}
+                style={({ pressed }) => [
+                  styles.remixButton,
+                  pressed && styles.remixButtonPressed,
+                ]}
               >
-                <ChefHatIcon size={18} color="#FFFDF9" />
-                <Text style={styles.remixButtonText}>Bu Tasarımı Düzenle</Text>
+                <ChefHatIcon size={16} color="#FFFDF9" />
+                <Text style={styles.remixButtonText} numberOfLines={1}>{tx("Tasarımı Düzenle")}</Text>
               </Pressable>
             )}
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Görseli İndir"
+              accessibilityLabel={tx("Görseli İndir")}
               onPress={handleDownload}
               disabled={isDownloading}
-              style={styles.modalDownloadButton}
+              style={({ pressed }) => [
+                styles.modalDownloadButton,
+                pressed && styles.modalDownloadButtonPressed,
+              ]}
             >
               {isDownloading ? (
                 <ActivityIndicator size="small" color={home.ink} />
               ) : (
                 <>
-                  <DownloadIcon size={18} color={home.ink} />
-                  <Text style={styles.modalDownloadButtonText}>Görseli İndir</Text>
+                  <DownloadIcon size={16} color={home.ink} />
+                  <Text style={styles.modalDownloadButtonText} numberOfLines={1}>{tx("Görseli İndir")}</Text>
                 </>
               )}
             </Pressable>
@@ -256,74 +281,74 @@ export default function CakeDetailModal({
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <ChefHatIcon size={17} color={home.accentGold} />
-              <Text style={styles.sectionTitle}>PASTACI SİPARİŞ KARTI</Text>
+              <Text style={styles.sectionTitle}>{tx("PASTACI SİPARİŞ KARTI")}</Text>
             </View>
 
             <View style={styles.specsCard}>
               <View style={styles.specRow}>
-                <Text style={styles.specKey}>Kategori</Text>
-                <Text style={styles.specValue}>{cake.title}</Text>
+                <Text style={styles.specKey}>{tx("Kategori")}</Text>
+                <Text style={styles.specValue}>{tx(cake.title)}</Text>
               </View>
 
               {cake.details?.guests && (
                 <View style={styles.specRow}>
-                  <Text style={styles.specKey}>Kişi Sayısı</Text>
-                  <Text style={styles.specValue}>{cake.details.guests} Kişilik</Text>
+                  <Text style={styles.specKey}>{tx("Kişi Sayısı")}</Text>
+                  <Text style={styles.specValue}>{tx("{guests} Kişilik", { guests: cake.details.guests })}</Text>
                 </View>
               )}
 
               {cake.details?.tier && (
                 <View style={styles.specRow}>
-                  <Text style={styles.specKey}>Kat Sayısı</Text>
-                  <Text style={styles.specValue}>{cake.details.tier} Katlı</Text>
+                  <Text style={styles.specKey}>{tx("Kat Sayısı")}</Text>
+                  <Text style={styles.specValue}>{tx("{tier} Katlı", { tier: cake.details.tier })}</Text>
                 </View>
               )}
 
               {cake.details?.shape && (
                 <View style={styles.specRow}>
-                  <Text style={styles.specKey}>Şekil</Text>
+                  <Text style={styles.specKey}>{tx("Şekil")}</Text>
                   <Text style={styles.specValue}>{cake.details.shape}</Text>
                 </View>
               )}
 
               {cake.details?.flavor && (
                 <View style={styles.specRow}>
-                  <Text style={styles.specKey}>Aroma / Tat</Text>
+                  <Text style={styles.specKey}>{tx("Aroma / Tat")}</Text>
                   <Text style={styles.specValue}>{cake.details.flavor}</Text>
                 </View>
               )}
 
               {cake.details?.coating && (
                 <View style={styles.specRow}>
-                  <Text style={styles.specKey}>Dış Kaplama</Text>
+                  <Text style={styles.specKey}>{tx("Dış Kaplama")}</Text>
                   <Text style={styles.specValue}>{cake.details.coating}</Text>
                 </View>
               )}
 
               {cake.details?.color && (
                 <View style={styles.specRow}>
-                  <Text style={styles.specKey}>Renk Paleti</Text>
+                  <Text style={styles.specKey}>{tx("Renk Paleti")}</Text>
                   <Text style={styles.specValue}>{cake.details.color}</Text>
                 </View>
               )}
 
               {cake.details?.decor && (
                 <View style={styles.specRow}>
-                  <Text style={styles.specKey}>Süsleme</Text>
+                  <Text style={styles.specKey}>{tx("Süsleme")}</Text>
                   <Text style={styles.specValue}>{cake.details.decor}</Text>
                 </View>
               )}
 
               {cake.details?.writing && (
                 <View style={styles.specRow}>
-                  <Text style={styles.specKey}>Üzerindeki Yazı</Text>
+                  <Text style={styles.specKey}>{tx("Üzerindeki Yazı")}</Text>
                   <Text style={styles.specValue}>"{cake.details.writing}"</Text>
                 </View>
               )}
 
               {cake.details?.referenceImageUri && (
                 <View style={styles.specRow}>
-                  <Text style={styles.specKey}>İlham Fotoğrafı</Text>
+                  <Text style={styles.specKey}>{tx("İlham Fotoğrafı")}</Text>
                   <CakeImage
                     source={{ uri: cake.details.referenceImageUri }}
                     style={styles.specThumb}
@@ -336,7 +361,7 @@ export default function CakeDetailModal({
 
               {cake.details?.customNotes && (
                 <View style={[styles.specRow, styles.specRowLast]}>
-                  <Text style={styles.specKey}>Özel Notlar</Text>
+                  <Text style={styles.specKey}>{tx("Özel Notlar")}</Text>
                   <Text style={[styles.specValue, styles.specNotes]}>
                     {cake.details.customNotes}
                   </Text>
@@ -346,14 +371,12 @@ export default function CakeDetailModal({
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Tam Sipariş Fişi ve AI Malzeme Rehberini Aç"
+              accessibilityLabel={tx("Tam Sipariş Fişi ve AI Malzeme Rehberini Aç")}
               onPress={() => setIsOrderSheetOpen(true)}
               style={styles.orderSheetBtn}
             >
               <DocumentIcon size={16} color={home.accentGold} />
-              <Text style={styles.orderSheetBtnText}>
-                Tam Sipariş Fişi & AI Malzeme Rehberini Aç
-              </Text>
+              <Text style={styles.orderSheetBtnText}>{tx("Tam Sipariş Fişi & AI Malzeme Rehberini Aç")}</Text>
             </Pressable>
           </View>
 
@@ -372,7 +395,7 @@ export default function CakeDetailModal({
               <View style={styles.sectionHeaderBetween}>
                 <View style={styles.sectionHeaderLeft}>
                   <SparkleIcon size={16} color={home.accentGold} />
-                  <Text style={styles.sectionTitle}>YAPAY ZEKA TARİFİ</Text>
+                  <Text style={styles.sectionTitle}>{tx("YAPAY ZEKA TARİFİ")}</Text>
                 </View>
 
                 <Pressable
@@ -383,12 +406,12 @@ export default function CakeDetailModal({
                   {copied ? (
                     <>
                       <CheckIcon size={14} color="#2E7D32" />
-                      <Text style={styles.copiedText}>Kopyalandı</Text>
+                      <Text style={styles.copiedText}>{tx("Kopyalandı")}</Text>
                     </>
                   ) : (
                     <>
                       <CopyIcon size={14} color={home.muted} />
-                      <Text style={styles.copyText}>Kopyala</Text>
+                      <Text style={styles.copyText}>{tx("Kopyala")}</Text>
                     </>
                   )}
                 </Pressable>
@@ -412,7 +435,57 @@ export default function CakeDetailModal({
           imageUri={cake.imageUri}
           details={cake.details}
         />
+
+        {/* Tam Ekran Büyütülmüş Görsel Modalı (Sıfır Siyah Boşluk, Kusursuz Krem Paleti) */}
+        <Modal
+          visible={isZoomOpen}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setIsZoomOpen(false)}
+        >
+          <View style={styles.zoomModalRoot}>
+            <LinearGradient
+              colors={[home.washTop, home.washMid, home.washEnd]}
+              locations={[0, 0.24, 0.58]}
+              style={StyleSheet.absoluteFill}
+            />
+
+            {/* Üst Bar: Kapatma, Başlık, İndirme */}
+            <View style={[styles.zoomHeader, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={tx("Kapat")}
+                onPress={() => setIsZoomOpen(false)}
+                hitSlop={12}
+                style={styles.circleBtn}
+              >
+                <CloseIcon size={19} color={home.ink} />
+              </Pressable>
+
+              <Text style={styles.zoomHeaderTitle} numberOfLines={1}>
+                {tx(cake.title)}
+              </Text>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={tx("İndir")}
+                onPress={handleDownload}
+                hitSlop={12}
+                style={styles.circleBtn}
+              >
+                <DownloadIcon size={18} color={home.ink} />
+              </Pressable>
+            </View>
+
+            {/* İki Parmakla Büyütüp Küçültülebilen (Pinch-To-Zoom) Görsel */}
+            <View style={styles.zoomViewerContainer}>
+              {cake.imageUri && <PinchableImageViewer uri={cake.imageUri} />}
+            </View>
+          </View>
+        </Modal>
       </View>
+      {consentSheet}
     </Modal>
   );
 }
@@ -510,8 +583,8 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 16,
+    gap: 8,
+    marginTop: 14,
     marginBottom: 8,
   },
   remixButton: {
@@ -519,40 +592,84 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 15,
-    borderRadius: 18,
+    gap: 6,
+    paddingVertical: 13,
+    paddingHorizontal: 8,
+    borderRadius: 16,
     backgroundColor: home.ctaFrom,
     borderWidth: 1,
     borderColor: 'rgba(243, 217, 166, 0.35)',
     shadowColor: '#2B1A0E',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
-    shadowRadius: 8,
+    shadowRadius: 6,
     elevation: 3,
   },
+  remixButtonPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
+  },
   modalDownloadButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 7,
-    paddingVertical: 15,
-    paddingHorizontal: 16,
-    borderRadius: 18,
+    gap: 6,
+    paddingVertical: 13,
+    paddingHorizontal: 8,
+    borderRadius: 16,
     backgroundColor: '#FAF5EE',
     borderWidth: 1,
     borderColor: '#E8DCB8',
   },
+  modalDownloadButtonPressed: {
+    backgroundColor: '#F3ECE0',
+    transform: [{ scale: 0.98 }],
+  },
   modalDownloadButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: home.ink,
   },
   remixButtonText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
     color: '#FFFDF9',
+    letterSpacing: 0.1,
+  },
+  imageCardPressed: {
+    opacity: 0.94,
+    transform: [{ scale: 0.995 }],
+  },
+  zoomModalRoot: {
+    flex: 1,
+    backgroundColor: home.bg,
+    justifyContent: 'space-between',
+  },
+  zoomHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 18,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(216, 196, 168, 0.35)',
+    zIndex: 10,
+  },
+  zoomHeaderTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: fonts.display,
+    fontSize: 17,
+    color: home.ink,
     letterSpacing: 0.2,
+    paddingHorizontal: 12,
+  },
+  zoomViewerContainer: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   section: {
     marginTop: 20,

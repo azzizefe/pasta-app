@@ -6,7 +6,9 @@
 export type IAPPackageId =
   | 'lumiere_credits_single_15'
   | 'lumiere_credits_starter_200'
-  | 'lumiere_credits_popular_1000';
+  | 'lumiere_credits_popular_1000'
+  /** One-time discounted 200-credit offer. A separate App Store product, so the store charges the price shown. */
+  | 'lumiere_credits_offer_200';
 
 export interface IAPPackage {
   id: IAPPackageId;

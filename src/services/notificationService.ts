@@ -8,6 +8,7 @@ import {
   OCCASION_TYPE_INFO,
   SpecialOccasion,
 } from '../types/occasion';
+import { tx } from '../i18n/tx';
 
 export const NOTIFICATIONS_ENABLED_KEY = '@lumiere_notifications_enabled_v1';
 
@@ -83,12 +84,12 @@ export async function scheduleOccasionReminder(
       content: {
         title:
           leadDays === 0
-            ? `${typeInfo.icon} Bugün ${occasion.personName}'in ${typeInfo.label}!`
-            : `${typeInfo.icon} ${occasion.personName}'in ${typeInfo.label} Yaklaşıyor!`,
+            ? tx("{icon} Bugün {personName}'in {label}!", { icon: typeInfo.icon, personName: occasion.personName, label: tx(typeInfo.label) })
+            : tx("{icon} {personName}'in {label} Yaklaşıyor!", { icon: typeInfo.icon, personName: occasion.personName, label: tx(typeInfo.label) }),
         body:
           leadDays === 0
-            ? `Lumière Sucrée'de ona özel unutulmaz bir pasta tasarlamak için dokun ✨`
-            : `Kutlamaya ${describeLeadTime(leadDays)} kaldı! Lumière Sucrée'de ona özel unutulmaz bir pasta tasarlamak için dokun ✨`,
+            ? tx("Lumière Sucrée'de ona özel unutulmaz bir pasta tasarlamak için dokun ✨")
+            : tx("Kutlamaya {p0} kaldı! Lumière Sucrée'de ona özel unutulmaz bir pasta tasarlamak için dokun ✨", { p0: describeLeadTime(leadDays) }),
         data: {
           occasionId: occasion.id,
           cakeKind: typeInfo.defaultKind,
@@ -140,15 +141,15 @@ export async function cancelAllReminders() {
 /**
  * Anlık test bildirimi gönderir (5 saniye sonra çalar)
  */
-export async function sendTestNotification(personName: string = 'Sevdiğiniz Biri') {
+export async function sendTestNotification(personName: string = tx("Sevdiğiniz Biri")) {
   try {
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) return false;
 
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '🎂 2 Hafta Kaldı Hatırlatıcısı (Test)',
-        body: `${personName}'in özel gününe 2 hafta kaldı! Ona özel lüks bir pasta tasarlayabilirsiniz ✨`,
+        title: tx("🎂 2 Hafta Kaldı Hatırlatıcısı (Test)"),
+        body: tx("{personName}'in özel gününe 2 hafta kaldı! Ona özel lüks bir pasta tasarlayabilirsiniz ✨", { personName }),
         sound: true,
       },
       trigger: {

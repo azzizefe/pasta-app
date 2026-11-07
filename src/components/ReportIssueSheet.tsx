@@ -7,6 +7,8 @@ import InfoSheet, { sheetStyles } from './InfoSheet';
 import { AlertCircleIcon, MailIcon } from './Icons';
 import { APP_VERSION, SUPPORT_EMAIL, buildSupportMailto, getDeviceLabel } from '../config/app';
 import { home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 const CATEGORIES = [
   'Görsel Üretimi',
@@ -27,6 +29,7 @@ type Props = {
 };
 
 export default function ReportIssueSheet({ visible, onClose }: Props) {
+  useTx();
   const [category, setCategory] = useState<Category>('Görsel Üretimi');
   const [description, setDescription] = useState('');
 
@@ -53,25 +56,22 @@ export default function ReportIssueSheet({ visible, onClose }: Props) {
       onClose();
     } catch {
       showAlert(
-        'E-posta Uygulaması Açılamadı',
-        `Sorununu bize doğrudan ${SUPPORT_EMAIL} adresine yazarak iletebilirsin.`,
+        tx("E-posta Uygulaması Açılamadı"),
+        tx("Sorununu bize doğrudan {SUPPORT_EMAIL} adresine yazarak iletebilirsin.", { SUPPORT_EMAIL }),
       );
     }
   };
 
   return (
-    <InfoSheet visible={visible} title="Sorun Bildir" subtitle="Ekibimize doğrudan ulaş" onClose={onClose}>
+    <InfoSheet visible={visible} title={tx("Sorun Bildir")} subtitle={tx("Ekibimize doğrudan ulaş")} onClose={onClose}>
       <View style={styles.intro}>
         <View style={styles.introIcon}>
           <AlertCircleIcon size={22} color={home.gold} />
         </View>
-        <Text style={styles.introText}>
-          Bir şeyler ters mi gitti? Ne olduğunu birkaç cümleyle anlat; sorunu birlikte
-          hızlıca çözelim.
-        </Text>
+        <Text style={styles.introText}>{tx("Bir şeyler ters mi gitti? Ne olduğunu birkaç cümleyle anlat; sorunu birlikte hızlıca çözelim.")}</Text>
       </View>
 
-      <Text style={sheetStyles.sectionLabel}>KONU</Text>
+      <Text style={sheetStyles.sectionLabel}>{tx("KONU")}</Text>
       <View style={styles.chipWrap}>
         {CATEGORIES.map((c) => {
           const isActive = c === category;
@@ -83,13 +83,13 @@ export default function ReportIssueSheet({ visible, onClose }: Props) {
               onPress={() => setCategory(c)}
               style={[styles.chip, isActive && styles.chipActive]}
             >
-              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{c}</Text>
+              <Text style={[styles.chipText, isActive && styles.chipTextActive]}>{tx(c)}</Text>
             </Pressable>
           );
         })}
       </View>
 
-      <Text style={sheetStyles.sectionLabel}>NE OLDU?</Text>
+      <Text style={sheetStyles.sectionLabel}>{tx("NE OLDU?")}</Text>
       <View style={styles.inputCard}>
         <TextInput
           style={styles.input}
@@ -97,7 +97,7 @@ export default function ReportIssueSheet({ visible, onClose }: Props) {
           maxLength={MAX_LENGTH}
           value={description}
           onChangeText={setDescription}
-          placeholder="Örn: Düğün pastası oluştururken görsel yüklenmedi ve ekran boş kaldı..."
+          placeholder={tx("Örn: Düğün pastası oluştururken görsel yüklenmedi ve ekran boş kaldı...")}
           placeholderTextColor="rgba(110, 85, 55, 0.45)"
           textAlignVertical="top"
         />
@@ -107,9 +107,7 @@ export default function ReportIssueSheet({ visible, onClose }: Props) {
       </View>
 
       <View style={styles.deviceNote}>
-        <Text style={styles.deviceNoteText}>
-          E-postana otomatik eklenecek: <Text style={styles.deviceNoteBold}>{deviceLabel}</Text> ·
-          Sürüm <Text style={styles.deviceNoteBold}>{APP_VERSION}</Text>
+        <Text style={styles.deviceNoteText}>{tx("E-postana otomatik eklenecek:")}{' '}<Text style={styles.deviceNoteBold}>{deviceLabel}</Text>{' '}{tx("· Sürüm")}{' '}<Text style={styles.deviceNoteBold}>{APP_VERSION}</Text>
         </Text>
       </View>
 
@@ -127,14 +125,14 @@ export default function ReportIssueSheet({ visible, onClose }: Props) {
           style={sheetStyles.primaryBtn}
         >
           <MailIcon size={18} color={home.accentGold} />
-          <Text style={sheetStyles.primaryBtnText}>E-posta ile Gönder</Text>
+          <Text style={sheetStyles.primaryBtnText}>{tx("E-posta ile Gönder")}</Text>
         </LinearGradient>
       </Pressable>
 
       <Text style={styles.footnote}>
         {canSend
-          ? `Gönder'e dokununca e-posta uygulaman hazır bir mesajla açılır.`
-          : `Göndermek için en az ${MIN_LENGTH} karakter yaz.`}
+          ? tx("Gönder'e dokununca e-posta uygulaman hazır bir mesajla açılır.")
+          : tx("Göndermek için en az {MIN_LENGTH} karakter yaz.", { MIN_LENGTH })}
       </Text>
     </InfoSheet>
   );

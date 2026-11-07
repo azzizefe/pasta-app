@@ -11,6 +11,8 @@ import { StatusBar } from 'expo-status-bar';
 
 import { SparkleIcon, HomeIcon } from '../components/Icons';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 export type NotFoundScreenProps = {
   code?: string | number;
@@ -21,14 +23,19 @@ export type NotFoundScreenProps = {
   onRetry?: () => void;
 };
 
+const DEFAULT_TITLE = 'Bu Şaheser Bulunamadı';
+const DEFAULT_SUBTITLE =
+  'Aradığınız özel pasta tasarımı haute couture menümüzden kaldırılmış, taşınmış ya da kısa bir mutfak molası verilmiş olabilir.';
+
 export default function NotFoundScreen({
   code = '404',
-  title = 'Bu Şaheser Bulunamadı',
-  subtitle = 'Aradığınız özel pasta tasarımı haute couture menümüzden kaldırılmış, taşınmış ya da kısa bir mutfak molası verilmiş olabilir.',
+  title = DEFAULT_TITLE,
+  subtitle = DEFAULT_SUBTITLE,
   frenchNote = "Cette création n'est plus disponible dans nos ateliers",
   onGoHome,
   onRetry,
 }: NotFoundScreenProps) {
+  useTx();
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar style="dark" />
@@ -54,10 +61,10 @@ export default function NotFoundScreen({
         <Text style={styles.frenchNote}>« {frenchNote} »</Text>
 
         {/* Başlık (Playfair Display) */}
-        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.title}>{tx(title)}</Text>
 
         {/* Açıklama Metni */}
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <Text style={styles.subtitle}>{tx(subtitle)}</Text>
 
         <View style={styles.divider} />
 
@@ -65,7 +72,7 @@ export default function NotFoundScreen({
         <View style={styles.buttonGroup}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Atölyeye Dön"
+            accessibilityLabel={tx("Atölyeye Dön")}
             onPress={onGoHome}
             style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
           >
@@ -76,26 +83,26 @@ export default function NotFoundScreen({
               style={styles.primaryGradient}
             >
               <HomeIcon size={18} color={home.accentGold} />
-              <Text style={styles.primaryButtonText}>Atölyeye Dön</Text>
+              <Text style={styles.primaryButtonText}>{tx("Atölyeye Dön")}</Text>
             </LinearGradient>
           </Pressable>
 
           {onRetry && (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Yeniden Dene"
+              accessibilityLabel={tx("Yeniden Dene")}
               onPress={onRetry}
               style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
             >
-              <Text style={styles.secondaryButtonText}>Yeniden Dene</Text>
+              <Text style={styles.secondaryButtonText}>{tx("Yeniden Dene")}</Text>
             </Pressable>
           )}
         </View>
 
         {/* Marka İmzası */}
         <View style={styles.footer}>
-          <Text style={styles.brandTitle}>LUMIÈRE SUCRÉE</Text>
-          <Text style={styles.brandSub}>HAUTE PÂTISSERIE VIRTUELLE</Text>
+          <Text style={styles.brandTitle}>{tx("LUMIÈRE SUCRÉE")}</Text>
+          <Text style={styles.brandSub}>{tx("HAUTE PÂTISSERIE VIRTUELLE")}</Text>
         </View>
       </View>
     </SafeAreaView>

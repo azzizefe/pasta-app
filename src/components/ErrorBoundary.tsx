@@ -1,6 +1,8 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import NotFoundScreen from '../screens/NotFoundScreen';
 import { captureException } from '../services/monitoringService';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 interface Props {
   children: ReactNode;
@@ -45,7 +47,7 @@ export default class ErrorBoundary extends Component<Props, State> {
         <NotFoundScreen
           code="404"
           title="Kısa Bir Mutfak Molası"
-          subtitle="Beklenmedik bir aksaklık nedeniyle bu ekran yüklenemedi. Şeflerimiz durumu inceliyor."
+          subtitle={tx("Beklenmedik bir aksaklık nedeniyle bu ekran yüklenemedi. Şeflerimiz durumu inceliyor.")}
           frenchNote="Une brève pause dans nos ateliers"
           onGoHome={this.handleReset}
           onRetry={this.handleReset}

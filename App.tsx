@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Linking, Platform, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
@@ -20,6 +20,7 @@ import {
 } from './src/services/monitoringService';
 import { trackAppLaunchAndRetention } from './src/services/analyticsService';
 import { deleteFullUserAccount, wipeLocalAccountData } from './src/services/accountService';
+import { setIAPUser } from './src/services/iapService';
 import CakeBuilderScreen, { type CakeKind } from './src/screens/CakeBuilderScreen';
 import { type CakeDetails } from './src/types/savedCake';
 import CreditsScreen from './src/screens/CreditsScreen';
@@ -55,7 +56,7 @@ function MainApp({
   onOpenBuilder,
   onCloseBuilder,
 }: MainAppProps) {
-  const { isPurchaseModalOpen, closePurchaseModal } = useCredits();
+  const { isPurchaseModalOpen, closePurchaseModal, addCredits } = useCredits();
 
   return (
     <View style={styles.stack}>
@@ -143,6 +144,12 @@ export default function App() {
         setAuthReady(true);
       });
   }, []);
+
+  // Store purchases are tied to the signed-in user so the server can credit the right account.
+  const currentUserId = signedIn ? currentUser?.id ?? null : null;
+  React.useEffect(() => {
+    setIAPUser(currentUserId);
+  }, [currentUserId]);
 
   const handleSignIn = useCallback((provider: Provider, user?: AppleUser) => {
     console.log(`Signed in with ${provider}`, user);

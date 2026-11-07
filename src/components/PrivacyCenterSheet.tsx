@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { showAlert } from '../utils/alert';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,10 +14,14 @@ import {
   LockIcon,
   MailIcon,
   ShieldIcon,
+  SparkleIcon,
   UserIcon,
 } from './Icons';
 import { SUPPORT_EMAIL, buildSupportMailto } from '../config/app';
 import { home } from '../theme/theme';
+import { hasAiConsent, revokeAiConsent } from '../services/aiConsentService';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 const DATA_PRACTICES = [
   {
@@ -27,8 +31,8 @@ const DATA_PRACTICES = [
   },
   {
     icon: ImageIcon,
-    title: 'İlham fotoğrafların',
-    text: 'Yüklediğin fotoğraflar ve tarif notların yalnızca tasarımını oluşturmak için şifreli bağlantıyla gönderilir; herkese açık yapay zeka modellerinin eğitiminde kullanılmaz.',
+    title: 'Açıklaman ve ilham fotoğrafın',
+    text: 'Senin iznini aldıktan sonra, pasta açıklaman ve eklediğin fotoğraf yalnızca tasarımını oluşturmak için şifreli bağlantıyla sunucumuz üzerinden Google Gemini’ye (gerekirse yedek olarak OpenAI’ye) gönderilir. Adın ve e-postan gönderilmez; içerikler yapay zeka eğitiminde kullanılmaz.',
   },
   {
     icon: CreditCardIcon,
@@ -43,7 +47,7 @@ const DATA_PRACTICES = [
   {
     icon: AlertCircleIcon,
     title: 'Hata raporları',
-    text: 'Uygulamayı kararlı tutabilmek için anonim çökme raporları ve performans verileri toplanabilir.',
+    text: 'Uygulamayı kararlı tutabilmek için çökme raporları ve performans verileri toplanabilir. Sorunu çözebilmemiz için bu raporlar hesap kimliğini içerebilir.',
   },
 ];
 
@@ -55,29 +59,62 @@ type Props = {
 };
 
 export default function PrivacyCenterSheet({ visible, onClose, onPrivacyPolicy, onTermsOfUse }: Props) {
+  useTx();
+  const [aiConsent, setAiConsent] = useState(false);
+
+  useEffect(() => {
+    if (visible) hasAiConsent().then(setAiConsent);
+  }, [visible]);
+
+  const handleAiConsent = () => {
+    if (!aiConsent) {
+      showAlert(
+        tx("Yapay Zeka Veri Paylaşımı"),
+        tx("Şu an izin vermedin. Bir sonraki tasarımında, açıklamanın yapay zeka hizmetine gönderilmesi için iznin istenecek."),
+      );
+      return;
+    }
+    showAlert(
+      tx("İzni geri al?"),
+      tx("Açıklamaların ve fotoğrafların artık yapay zeka hizmetine gönderilmeyecek. Yeni tasarım oluşturmak istediğinde iznin tekrar istenecek."),
+      [
+        { text: tx("Vazgeç"), style: 'cancel' },
+        {
+          text: tx("İzni Geri Al"),
+          style: 'destructive',
+          onPress: () => {
+            revokeAiConsent()
+              .then(() => setAiConsent(false))
+              .catch(() => showAlert(tx("İzin geri alınamadı"), tx("Lütfen tekrar dene.")));
+          },
+        },
+      ],
+    );
+  };
+
   const handleNotificationSettings = () => {
     if (Platform.OS === 'web') {
-      showAlert('Bildirim İzinleri', 'Bildirim izinlerini tarayıcının site ayarlarından yönetebilirsin.');
+      showAlert(tx("Bildirim İzinleri"), tx("Bildirim izinlerini tarayıcının site ayarlarından yönetebilirsin."));
       return;
     }
     Linking.openSettings().catch(() => {
-      showAlert('Ayarlar Açılamadı', 'Bildirim izinlerini cihazının Ayarlar uygulamasından yönetebilirsin.');
+      showAlert(tx("Ayarlar Açılamadı"), tx("Bildirim izinlerini cihazının Ayarlar uygulamasından yönetebilirsin."));
     });
   };
 
   const handleDataRequest = () => {
     Linking.openURL(
       buildSupportMailto(
-        '[Lumière Sucrée] Kişisel Veri Talebi',
-        'Merhaba,\n\nHesabıma ait kişisel verilerle ilgili talebim:\n(ör. verilerimin bir kopyası / verilerimin silinmesi)\n\n',
+        tx("[Lumière Sucrée] Kişisel Veri Talebi"),
+        tx("Merhaba,\n\nHesabıma ait kişisel verilerle ilgili talebim:\n(ör. verilerimin bir kopyası / verilerimin silinmesi)\n\n"),
       ),
     ).catch(() => {
-      showAlert('E-posta Uygulaması Açılamadı', `Talebini ${SUPPORT_EMAIL} adresine iletebilirsin.`);
+      showAlert(tx("E-posta Uygulaması Açılamadı"), tx("Talebini {SUPPORT_EMAIL} adresine iletebilirsin.", { SUPPORT_EMAIL }));
     });
   };
 
   return (
-    <InfoSheet visible={visible} title="Gizlilik Merkezi" subtitle="Verilerin üzerinde tam kontrol" onClose={onClose}>
+    <InfoSheet visible={visible} title={tx("Gizlilik Merkezi")} subtitle={tx("Verilerin üzerinde tam kontrol")} onClose={onClose}>
       <LinearGradient
         colors={[home.ctaFrom, home.ctaTo]}
         start={{ x: 0, y: 0 }}
@@ -88,18 +125,15 @@ export default function PrivacyCenterSheet({ visible, onClose, onPrivacyPolicy, 
         <View style={styles.heroIcon}>
           <ShieldIcon size={30} color={home.accentGold} />
         </View>
-        <Text style={styles.heroTitle}>Gizliliğin bizim için önemli</Text>
-        <Text style={styles.heroText}>
-          Hangi bilgiyi neden kullandığımızı açıkça anlatıyoruz. Kişisel verilerini
-          satmıyor, kiralamıyor veya takas etmiyoruz.
-        </Text>
+        <Text style={styles.heroTitle}>{tx("Gizliliğin bizim için önemli")}</Text>
+        <Text style={styles.heroText}>{tx("Hangi bilgiyi neden kullandığımızı açıkça anlatıyoruz. Kişisel verilerini satmıyor, kiralamıyor veya takas etmiyoruz.")}</Text>
         <View style={styles.heroBadge}>
           <LockIcon size={12} color={home.accentGold} />
-          <Text style={styles.heroBadgeText}>Şifreli bağlantı (TLS)</Text>
+          <Text style={styles.heroBadgeText}>{tx("Şifreli bağlantı (TLS)")}</Text>
         </View>
       </LinearGradient>
 
-      <Text style={sheetStyles.sectionLabel}>NELERİ, NEDEN KULLANIYORUZ</Text>
+      <Text style={sheetStyles.sectionLabel}>{tx("NELERİ, NEDEN KULLANIYORUZ")}</Text>
       <View style={sheetStyles.card}>
         {DATA_PRACTICES.map(({ icon: Icon, title, text }, idx) => (
           <View
@@ -110,35 +144,41 @@ export default function PrivacyCenterSheet({ visible, onClose, onPrivacyPolicy, 
               <Icon size={17} color={home.gold} />
             </View>
             <View style={styles.practiceBody}>
-              <Text style={styles.practiceTitle}>{title}</Text>
-              <Text style={styles.practiceText}>{text}</Text>
+              <Text style={styles.practiceTitle}>{tx(title)}</Text>
+              <Text style={styles.practiceText}>{tx(text)}</Text>
             </View>
           </View>
         ))}
       </View>
 
-      <Text style={sheetStyles.sectionLabel}>KONTROL SENDE</Text>
+      <Text style={sheetStyles.sectionLabel}>{tx("KONTROL SENDE")}</Text>
       <View style={sheetStyles.card}>
         <SheetRow
+          icon={<SparkleIcon size={17} color={home.gold} />}
+          label={tx("Yapay Zeka Veri Paylaşımı")}
+          detail={aiConsent ? tx("İzin verildi · geri almak için dokun") : tx("İzin verilmedi · ilk tasarımda sorulur")}
+          onPress={handleAiConsent}
+        />
+        <SheetRow
           icon={<BellIcon size={17} color={home.gold} />}
-          label="Bildirim İzinleri"
-          detail="Hatırlatıcı bildirimlerini aç veya kapat"
+          label={tx("Bildirim İzinleri")}
+          detail={tx("Hatırlatıcı bildirimlerini aç veya kapat")}
           onPress={handleNotificationSettings}
         />
         <SheetRow
           icon={<MailIcon size={17} color={home.gold} />}
-          label="Verilerimi Talep Et"
-          detail="Verilerinin kopyasını veya silinmesini iste"
+          label={tx("Verilerimi Talep Et")}
+          detail={tx("Verilerinin kopyasını veya silinmesini iste")}
           onPress={handleDataRequest}
         />
         <SheetRow
           icon={<ShieldIcon size={17} color={home.gold} />}
-          label="Gizlilik Politikası"
+          label={tx("Gizlilik Politikası")}
           onPress={onPrivacyPolicy}
         />
         <SheetRow
           icon={<DocumentIcon size={17} color={home.gold} />}
-          label="Kullanım Koşulları"
+          label={tx("Kullanım Koşulları")}
           onPress={onTermsOfUse}
           isLast
         />

@@ -1,0 +1,29 @@
+# /etc/systemd/system/lumiere-api.service
+# Sunucuyu arka planda çalıştırır; çökerse veya sunucu yeniden başlarsa otomatik açar.
+[Unit]
+Description=Lumiere Sucree AI API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lumiere
+WorkingDirectory=/opt/lumiere-api
+# Gemini anahtarı bu dosyada durur (sadece root okuyabilir)
+EnvironmentFile=/etc/lumiere-api.env
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=3100
+ExecStart=/usr/bin/node express-server.js
+Restart=always
+RestartSec=3
+
+# Güvenlik sıkılaştırması
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/lumiere-api
+
+[Install]
+WantedBy=multi-user.target

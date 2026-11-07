@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée te permite elegir fotos de invitaciones o de inspiración para tus diseños de tartas.",
+    "NSPhotoLibraryAddUsageDescription": "Se necesita permiso para guardar en alta resolución en tu fototeca los diseños de tartas que crees.",
+    "NSCameraUsageDescription": "Haz una foto de los detalles que te inspiran para tu día especial y conviértela en un diseño de tarta."
+  }
+}

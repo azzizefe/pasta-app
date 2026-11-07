@@ -15,30 +15,32 @@ import {
   scheduleOccasionReminder,
   sendTestNotification,
 } from '../services/notificationService';
+import { tx } from '../i18n/tx';
 
 const STORAGE_KEY = '@lumiere_special_occasions_v1';
 
 // Kullanıcıya rehberlik edecek örnek başlangıç özel günleri
-const DEFAULT_SAMPLE_OCCASIONS: Omit<SpecialOccasion, 'id' | 'createdAt'>[] = [
+// Built when first seeded so the samples use the app language.
+const buildSampleOccasions = (): Omit<SpecialOccasion, 'id' | 'createdAt'>[] => [
   {
-    personName: 'Annem',
-    relationship: 'Anne',
-    title: "Annem'in Doğum Günü",
+    personName: tx('Annem'),
+    relationship: tx('Anne'),
+    title: tx("Annem'in Doğum Günü"),
     month: (new Date().getMonth() + 1) % 12 + 1, // Önümüzdeki ay
     day: 15,
     type: 'birthday',
     reminderDaysBefore: 14,
-    notes: 'Frambuazlı ve hafif şekerli pastaları çok sever.',
+    notes: tx('Frambuazlı ve hafif şekerli pastaları çok sever.'),
   },
   {
-    personName: 'Eşim',
-    relationship: 'Eş',
-    title: 'Evlilik Yıl Dönümümüz',
+    personName: tx('Eşim'),
+    relationship: tx('Eş'),
+    title: tx('Evlilik Yıl Dönümümüz'),
     month: ((new Date().getMonth() + 2) % 12) + 1, // 2 ay sonra
     day: 20,
     type: 'anniversary',
     reminderDaysBefore: 14,
-    notes: 'Altın detaylı zarif bir tasarım düşünülüyor.',
+    notes: tx('Altın detaylı zarif bir tasarım düşünülüyor.'),
   },
 ];
 
@@ -77,7 +79,7 @@ export function OccasionsProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           // İlk kez açılıyorsa örnekleri yükle
-          const samples: SpecialOccasion[] = DEFAULT_SAMPLE_OCCASIONS.map(
+          const samples: SpecialOccasion[] = buildSampleOccasions().map(
             (item, index) => ({
               ...item,
               id: `occ_sample_${index}_${Date.now()}`,

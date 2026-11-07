@@ -1,136 +1,72 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from 'react';
+import React, { createContext, useContext, useEffect, useMemo } from 'react';
+import { I18nManager, Platform, StyleSheet, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getLocales } from 'expo-localization';
-import {
-  LanguageInfo,
-  SUPPORTED_LANGUAGES,
-  SupportedLanguage,
-  translations,
-} from '../i18n/translations';
-import { addBreadcrumb } from '../services/monitoringService';
+import { useLocales } from 'expo-localization';
+import { SUPPORTED_LANGUAGES, SupportedLanguage } from '../i18n/languages';
+import { getDeviceRegion, getFormatLocale, resolveAppLanguage } from '../i18n/region';
+import { setTxLanguage, tx } from '../i18n/tx';
 
-const STORAGE_KEY = '@lumiere_selected_language';
+/** Key of the old manual language choice. The language now follows the device's country only. */
+const LEGACY_STORAGE_KEY = '@lumiere_selected_language';
 
 interface LanguageContextType {
   language: SupportedLanguage;
-  setLanguage: (lang: SupportedLanguage) => Promise<void>;
-  languages: LanguageInfo[];
-  currentLanguageInfo: LanguageInfo;
+  /** BCP 47 tag for dates and numbers, e.g. "tr-TR". */
+  formatLocale: string;
   isRTL: boolean;
-  t: (path: string, fallback?: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [language, setLanguageState] = useState<SupportedLanguage>('tr');
-  const [isReady, setIsReady] = useState(false);
-
-  // Cihaz dilini ve depolanmış tercihi yükle
-  useEffect(() => {
-    async function initLanguage() {
-      try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored && (stored === 'tr' || stored === 'en' || stored === 'fr' || stored === 'ar')) {
-          setLanguageState(stored as SupportedLanguage);
-        } else {
-          // Cihaz dilini algıla
-          const locales = getLocales();
-          const deviceCode = locales?.[0]?.languageCode?.toLowerCase() || '';
-
-          let detected: SupportedLanguage = 'en'; // Global varsayılan
-          if (deviceCode.startsWith('tr')) detected = 'tr';
-          else if (deviceCode.startsWith('fr')) detected = 'fr';
-          else if (deviceCode.startsWith('ar')) detected = 'ar';
-
-          setLanguageState(detected);
-          await AsyncStorage.setItem(STORAGE_KEY, detected);
-        }
-      } catch (err) {
-        console.warn('[LanguageContext] Dil başlatılamadı:', err);
-      } finally {
-        setIsReady(true);
-      }
-    }
-    initLanguage();
-  }, []);
-
-  const setLanguage = useCallback(async (newLang: SupportedLanguage) => {
-    setLanguageState(newLang);
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, newLang);
-      addBreadcrumb('i18n', `Language switched to: ${newLang}`);
-    } catch (err) {
-      console.warn('[LanguageContext] Dil kaydedilemedi:', err);
-    }
-  }, []);
-
-  const currentLanguageInfo = useMemo(() => {
-    return (
-      SUPPORTED_LANGUAGES.find((l) => l.code === language) ||
-      SUPPORTED_LANGUAGES[0]
-    );
-  }, [language]);
-
-  /**
-   * Nested dot-notation ile çeviri metnine ulaşır (örn: t('tabs.home'))
-   */
-  const t = useCallback(
-    (path: string, fallback?: string): string => {
-      const keys = path.split('.');
-      let current: any = translations[language];
-
-      for (const key of keys) {
-        if (current && typeof current === 'object' && key in current) {
-          current = current[key];
-        } else {
-          // Seçili dilde yoksa İngilizce fallback dene
-          let enCurrent: any = translations.en;
-          for (const enKey of keys) {
-            if (enCurrent && typeof enCurrent === 'object' && enKey in enCurrent) {
-              enCurrent = enCurrent[enKey];
-            } else {
-              return fallback || path;
-            }
-          }
-          return typeof enCurrent === 'string' ? enCurrent : fallback || path;
-        }
-      }
-
-      return typeof current === 'string' ? current : fallback || path;
-    },
-    [language]
-  );
-
-  const value = useMemo(
-    () => ({
-      language,
-      setLanguage,
-      languages: SUPPORTED_LANGUAGES,
-      currentLanguageInfo,
-      isRTL: currentLanguageInfo.isRTL,
-      t,
-    }),
-    [language, setLanguage, currentLanguageInfo, t]
-  );
-
-  if (!isReady) {
-    return null;
+/**
+ * Lays the app out right-to-left for Arabic, whatever the phone's own language.
+ * The root View's `direction` covers the screens at once. Modals are separate native roots, so the
+ * native setting is switched too; it takes effect from the next launch. On web the page's `dir` does it.
+ */
+function applyLayoutDirection(isRTL: boolean) {
+  if (Platform.OS === 'web') {
+    if (typeof document !== 'undefined') document.documentElement.dir = isRTL ? 'rtl' : 'ltr';
+    return;
   }
+  if (I18nManager.isRTL !== isRTL) {
+    I18nManager.allowRTL(isRTL);
+    I18nManager.forceRTL(isRTL);
+  }
+}
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  // Re-read when the device's language or region setting changes.
+  const locales = useLocales();
+  const language = useMemo(() => resolveAppLanguage(locales), [locales]);
+  const formatLocale = useMemo(
+    () => getFormatLocale(language, getDeviceRegion(locales)),
+    [language, locales]
+  );
+  // Keep the phrase translator in step before any child renders.
+  setTxLanguage(language, formatLocale);
+
+  const isRTL = SUPPORTED_LANGUAGES.find((l) => l.code === language)?.isRTL ?? false;
+
+  useEffect(() => {
+    AsyncStorage.removeItem(LEGACY_STORAGE_KEY).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    applyLayoutDirection(isRTL);
+  }, [isRTL]);
+
+  const value = useMemo(() => ({ language, formatLocale, isRTL }), [language, formatLocale, isRTL]);
 
   return (
     <LanguageContext.Provider value={value}>
-      {children}
+      <View style={[styles.root, { direction: isRTL ? 'rtl' : 'ltr' }]}>{children}</View>
     </LanguageContext.Provider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+});
 
 export function useLanguage() {
   const context = useContext(LanguageContext);
@@ -140,7 +76,8 @@ export function useLanguage() {
   return context;
 }
 
-export function useTranslation() {
-  const { t, language, isRTL } = useLanguage();
-  return { t, language, isRTL };
+/** Phrase translator for components; subscribing to the context re-renders them on language change. */
+export function useTx() {
+  useLanguage();
+  return tx;
 }

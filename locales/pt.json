@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "O Lumière Sucrée permite escolher fotos de convites ou de inspiração para os seus designs de bolo.",
+    "NSPhotoLibraryAddUsageDescription": "É necessária permissão para salvar em alta resolução na sua fototeca os designs de bolo que você criar.",
+    "NSCameraUsageDescription": "Tire uma foto dos detalhes que inspiram o seu dia especial e transforme-a em um design de bolo."
+  }
+}

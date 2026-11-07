@@ -36,6 +36,8 @@ import {
 } from './Icons';
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 const RING_SIZE = 104;
 const RING_STROKE = 6;
@@ -44,6 +46,7 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 /** Gold ring that fills as the day approaches: empty a year out, full on the day. */
 function CountdownRing({ daysLeft, children }: { daysLeft: number; children: React.ReactNode }) {
+  useTx();
   const progress = Math.min(1, Math.max(0.03, (365 - daysLeft) / 365));
   const center = RING_SIZE / 2;
   return (
@@ -134,15 +137,15 @@ function daysInMonth(month: number) {
 }
 
 function describeDistance(daysLeft: number) {
-  if (daysLeft === 0) return 'bugün';
-  if (daysLeft === 1) return 'yarın';
-  return `${daysLeft} gün sonra`;
+  if (daysLeft === 0) return tx('bugün');
+  if (daysLeft === 1) return tx('yarın');
+  return tx('{n} gün sonra', { n: daysLeft });
 }
 
 /** "1 Ekim Cuma", with the year only when it is not this year. */
 function formatShortDate(date: Date) {
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]}${sameYear ? '' : ` ${date.getFullYear()}`} ${WEEKDAYS[date.getDay()]}`;
+  return `${date.getDate()} ${tx(MONTH_NAMES[date.getMonth()])}${sameYear ? '' : ` ${date.getFullYear()}`} ${tx(WEEKDAYS[date.getDay()])}`;
 }
 
 const OCCASION_TYPES: OccasionType[] = [
@@ -157,20 +160,20 @@ const GOLD = home.accentGold;
 const CREAM = '#FFFDF9';
 
 function formatLongDate(date: Date) {
-  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}, ${WEEKDAYS[date.getDay()]}`;
+  return `${date.getDate()} ${tx(MONTH_NAMES[date.getMonth()])} ${date.getFullYear()}, ${tx(WEEKDAYS[date.getDay()])}`;
 }
 
 function getReminderLabel(occasion: SpecialOccasion, daysLeft: number, nextDate: Date) {
-  if (daysLeft <= occasion.reminderDaysBefore) return 'Hatırlatma zamanı geldi';
+  if (daysLeft <= occasion.reminderDaysBefore) return tx('Hatırlatma zamanı geldi');
   const reminder = new Date(nextDate);
   reminder.setDate(reminder.getDate() - occasion.reminderDaysBefore);
-  return `Hatırlatma: ${reminder.getDate()} ${MONTH_NAMES[reminder.getMonth()]}`;
+  return tx('Hatırlatma: {day} {month}', { day: reminder.getDate(), month: tx(MONTH_NAMES[reminder.getMonth()]) });
 }
 
 function getCountdownLabel(daysLeft: number) {
-  if (daysLeft === 0) return 'Bugün!';
-  if (daysLeft === 1) return 'Yarın!';
-  return `${daysLeft} gün`;
+  if (daysLeft === 0) return tx('Bugün!');
+  if (daysLeft === 1) return tx('Yarın!');
+  return tx('{n} gün', { n: daysLeft });
 }
 
 
@@ -179,6 +182,7 @@ export default function OccasionsModal({
   onClose,
   onOpenBuilder,
 }: Props) {
+  useTx();
   const insets = useSafeAreaInsets();
   const { occasions, addOccasion, deleteOccasion } = useOccasions();
 
@@ -203,7 +207,7 @@ export default function OccasionsModal({
   const reminderShortened =
     getReminderLeadDays(selectedMonth, selectedDay, draftReminder) < reminderDays;
   const reminderLabel =
-    REMINDER_OPTIONS.find((o) => o.days === reminderDays)?.label ?? `${reminderDays} gün önce`;
+    tx(REMINDER_OPTIONS.find((o) => o.days === reminderDays)?.label ?? '{n} gün önce', { n: reminderDays });
 
   // Keeps the chosen day centred in the strip: jumps there when the form opens, glides after.
   useEffect(() => {
@@ -224,7 +228,7 @@ export default function OccasionsModal({
 
   const handleSaveOccasion = async () => {
     if (!personName.trim()) {
-      showAlert('Eksik Bilgi', 'Lütfen kişi adını giriniz.');
+      showAlert(tx("Eksik Bilgi"), tx("Lütfen kişi adını giriniz."));
       return;
     }
 
@@ -240,12 +244,12 @@ export default function OccasionsModal({
       reminderDaysBefore: reminderDays,
     });
 
-    const reminderAt = `${formatShortDate(draftReminder)} sabah 10:00'da`;
+    const reminderAt = tx("{date} sabah 10:00'da", { date: formatShortDate(draftReminder) });
     const reminderText = reminderShortened
-      ? `Özel gün yakın olduğu için ilk bildirim ${reminderAt} gelecek.`
+      ? tx('Özel gün yakın olduğu için ilk bildirim {when} gelecek.', { when: reminderAt })
       : reminderDays === 0
-        ? `Özel günün sabahı, ${reminderAt} bildirim gelecek.`
-        : `Özel günden ${describeLeadTime(reminderDays)} önce, ${reminderAt} bildirim gelecek.`;
+        ? tx('Özel günün sabahı, {when} bildirim gelecek.', { when: reminderAt })
+        : tx('Özel günden {lead} önce, {when} bildirim gelecek.', { lead: describeLeadTime(reminderDays), when: reminderAt });
 
     setIsAdding(false);
     setPersonName('');
@@ -253,17 +257,17 @@ export default function OccasionsModal({
     setNotes('');
     setReminderDays(14);
 
-    showAlert('Hatırlatıcı Kuruldu ✨', reminderText);
+    showAlert(tx("Hatırlatıcı Kuruldu ✨"), reminderText);
   };
 
   const handleDelete = (occasion: SpecialOccasion) => {
     showAlert(
-      'Hatırlatıcıyı Sil',
-      `"${occasion.title}" hatırlatıcısını silmek istediğinize emin misiniz?`,
+      tx("Hatırlatıcıyı Sil"),
+      tx("\"{title}\" hatırlatıcısını silmek istediğinize emin misiniz?", { title: `${occasion.personName} · ${tx(OCCASION_TYPE_INFO[occasion.type].label)}` }),
       [
-        { text: 'Vazgeç', style: 'cancel' },
+        { text: tx("Vazgeç"), style: 'cancel' },
         {
-          text: 'Sil',
+          text: tx("Sil"),
           style: 'destructive',
           onPress: () => deleteOccasion(occasion.id),
         },
@@ -301,11 +305,11 @@ export default function OccasionsModal({
         <View style={styles.spotlightTopRow}>
           <View style={styles.spotlightEyebrow}>
             <SparkleIcon size={12} color={GOLD} />
-            <Text style={styles.spotlightEyebrowText}>SIRADAKİ ÖZEL GÜN</Text>
+            <Text style={styles.spotlightEyebrowText}>{tx("SIRADAKİ ÖZEL GÜN")}</Text>
           </View>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Hatırlatıcıyı sil"
+            accessibilityLabel={tx("Hatırlatıcıyı sil")}
             onPress={() => handleDelete(occasion)}
             hitSlop={10}
             style={styles.spotlightDelete}
@@ -321,7 +325,7 @@ export default function OccasionsModal({
             ) : (
               <>
                 <Text style={styles.countdownTileNumber}>{daysLeft}</Text>
-                <Text style={styles.countdownTileLabel}>GÜN KALDI</Text>
+                <Text style={styles.countdownTileLabel}>{tx("GÜN KALDI")}</Text>
               </>
             )}
           </CountdownRing>
@@ -331,7 +335,7 @@ export default function OccasionsModal({
               {occasion.personName}
             </Text>
             <Text style={styles.spotlightType} numberOfLines={1}>
-              {typeInfo.label}
+              {tx(typeInfo.label)}
               {occasion.relationship ? ` · ${occasion.relationship}` : ''}
             </Text>
             <Text style={styles.spotlightDate}>{formatLongDate(nextDate)}</Text>
@@ -358,7 +362,7 @@ export default function OccasionsModal({
             style={({ pressed }) => [styles.spotlightCta, pressed && styles.pressed]}
           >
             <ChefHatIcon size={15} color={home.ink} />
-            <Text style={styles.spotlightCtaText}>Pastasını Tasarla</Text>
+            <Text style={styles.spotlightCtaText}>{tx("Pastasını Tasarla")}</Text>
           </Pressable>
         </View>
       </LinearGradient>
@@ -376,7 +380,7 @@ export default function OccasionsModal({
         <View style={styles.cardHeader}>
           <View style={styles.dateTile}>
             <View style={styles.dateTileStrip}>
-              <Text style={styles.dateTileMonth}>{MONTH_SHORT[occasion.month - 1]}</Text>
+              <Text style={styles.dateTileMonth}>{tx(MONTH_SHORT[occasion.month - 1])}</Text>
             </View>
             <Text style={styles.dateTileDay}>{occasion.day}</Text>
           </View>
@@ -393,7 +397,7 @@ export default function OccasionsModal({
               )}
             </View>
             <Text style={styles.cardType} numberOfLines={1}>
-              {typeInfo.label} · {WEEKDAYS[nextDate.getDay()]}
+              {tx(typeInfo.label)} · {tx(WEEKDAYS[nextDate.getDay()])}
             </Text>
             <View style={styles.reminderLine}>
               <BellIcon size={12} color={isVerySoon ? '#C2410C' : home.body} />
@@ -425,12 +429,12 @@ export default function OccasionsModal({
             style={({ pressed }) => [styles.actionDesignBtn, pressed && styles.pressed]}
           >
             <ChefHatIcon size={15} color={CREAM} />
-            <Text style={styles.actionDesignText}>Pastasını Tasarla</Text>
+            <Text style={styles.actionDesignText}>{tx("Pastasını Tasarla")}</Text>
           </Pressable>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Hatırlatıcıyı sil"
+            accessibilityLabel={tx("Hatırlatıcıyı sil")}
             onPress={() => handleDelete(occasion)}
             hitSlop={8}
             style={({ pressed }) => [styles.actionDeleteBtn, pressed && styles.pressed]}
@@ -461,7 +465,7 @@ export default function OccasionsModal({
         <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Geri"
+            accessibilityLabel={tx("Geri")}
             onPress={onClose}
             hitSlop={10}
             style={styles.circleBtn}
@@ -470,14 +474,12 @@ export default function OccasionsModal({
           </Pressable>
 
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              Özel Gün Takvimi
-            </Text>
+            <Text style={styles.headerTitle} numberOfLines={1}>{tx("Özel Gün Takvimi")}</Text>
           </View>
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={isAdding ? 'Formu kapat' : 'Yeni özel gün ekle'}
+            accessibilityLabel={isAdding ? tx("Formu kapat") : tx("Yeni özel gün ekle")}
             onPress={() => setIsAdding((prev) => !prev)}
             hitSlop={10}
             style={[styles.circleBtn, styles.addBtn, isAdding && styles.addBtnActive]}
@@ -507,16 +509,16 @@ export default function OccasionsModal({
                   <SparkleIcon size={14} color={home.gold} />
                 </View>
                 <View>
-                  <Text style={styles.formTitle}>Yeni Özel Gün</Text>
-                  <Text style={styles.formSubtitle}>{reminderLabel} hatırlatılırsın</Text>
+                  <Text style={styles.formTitle}>{tx("Yeni Özel Gün")}</Text>
+                  <Text style={styles.formSubtitle}>{tx("{reminderLabel} hatırlatılırsın", { reminderLabel })}</Text>
                 </View>
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Kişi Adı *</Text>
+                <Text style={styles.inputLabel}>{tx("Kişi Adı *")}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Örn: Ayşe, Mehmet, Annem"
+                  placeholder={tx("Örn: Ayşe, Mehmet, Annem")}
                   placeholderTextColor="rgba(110, 85, 55, 0.45)"
                   value={personName}
                   onChangeText={setPersonName}
@@ -524,10 +526,10 @@ export default function OccasionsModal({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Yakınlık Derecesi (Opsiyonel)</Text>
+                <Text style={styles.inputLabel}>{tx("Yakınlık Derecesi (Opsiyonel)")}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="Örn: Eşim, Kardeşim, Arkadaşım"
+                  placeholder={tx("Örn: Eşim, Kardeşim, Arkadaşım")}
                   placeholderTextColor="rgba(110, 85, 55, 0.45)"
                   value={relationship}
                   onChangeText={setRelationship}
@@ -535,7 +537,7 @@ export default function OccasionsModal({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Özel Gün Türü</Text>
+                <Text style={styles.inputLabel}>{tx("Özel Gün Türü")}</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -551,7 +553,7 @@ export default function OccasionsModal({
                         style={[styles.chip, isActive && styles.chipActive]}
                       >
                         <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                          {info.label}
+                          {tx(info.label)}
                         </Text>
                       </Pressable>
                     );
@@ -560,7 +562,7 @@ export default function OccasionsModal({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Tarih</Text>
+                <Text style={styles.inputLabel}>{tx("Tarih")}</Text>
                 <View style={styles.dateCard}>
                   <View style={styles.optionGrid}>
                     {[0, 6].map((rowStart) => (
@@ -607,7 +609,7 @@ export default function OccasionsModal({
                         <Pressable
                           key={d}
                           accessibilityRole="button"
-                          accessibilityLabel={`${d} ${MONTH_NAMES[selectedMonth - 1]}, ${WEEKDAYS[weekday]}`}
+                          accessibilityLabel={`${d} ${tx(MONTH_NAMES[selectedMonth - 1])}, ${tx(WEEKDAYS[weekday])}`}
                           accessibilityState={{ selected: isSel }}
                           onPress={() => setSelectedDay(d)}
                           style={({ pressed }) => [
@@ -637,7 +639,7 @@ export default function OccasionsModal({
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Kaç gün önce hatırlatalım?</Text>
+                <Text style={styles.inputLabel}>{tx("Kaç gün önce hatırlatalım?")}</Text>
                 <View style={styles.segmented}>
                   {REMINDER_OPTIONS.map((opt) => {
                     const isSel = reminderDays === opt.days;
@@ -645,7 +647,7 @@ export default function OccasionsModal({
                       <Pressable
                         key={opt.days}
                         accessibilityRole="button"
-                        accessibilityLabel={`Hatırlatma: ${opt.label}`}
+                        accessibilityLabel={tx("Hatırlatma: {label}", { label: tx(opt.label) })}
                         accessibilityState={{ selected: isSel }}
                         onPress={() => setReminderDays(opt.days)}
                         style={({ pressed }) => [
@@ -658,25 +660,23 @@ export default function OccasionsModal({
                           style={[styles.optionText, isSel && styles.optionTextActive]}
                           numberOfLines={1}
                         >
-                          {opt.short}
+                          {tx(opt.short)}
                         </Text>
                       </Pressable>
                     );
                   })}
                 </View>
                 {reminderShortened && (
-                  <Text style={styles.reminderHint}>
-                    Özel gün seçtiğin süreden daha yakın; seni en yakın sabah hatırlatırız.
-                  </Text>
+                  <Text style={styles.reminderHint}>{tx("Özel gün seçtiğin süreden daha yakın; seni en yakın sabah hatırlatırız.")}</Text>
                 )}
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Pasta / Beğeni Notları</Text>
+                <Text style={styles.inputLabel}>{tx("Pasta / Beğeni Notları")}</Text>
                 <TextInput
                   style={[styles.input, styles.notesInput]}
                   multiline
-                  placeholder="Örn: Çilekli çikolatalı pastaları sever..."
+                  placeholder={tx("Örn: Çilekli çikolatalı pastaları sever...")}
                   placeholderTextColor="rgba(110, 85, 55, 0.45)"
                   value={notes}
                   onChangeText={setNotes}
@@ -696,7 +696,7 @@ export default function OccasionsModal({
                   style={styles.saveBtn}
                 >
                   <BellIcon size={16} color={GOLD} />
-                  <Text style={styles.saveBtnText}>Hatırlatıcıyı Kaydet</Text>
+                  <Text style={styles.saveBtnText}>{tx("Hatırlatıcıyı Kaydet")}</Text>
                 </LinearGradient>
               </Pressable>
             </View>
@@ -710,11 +710,8 @@ export default function OccasionsModal({
               >
                 <CalendarIcon size={30} color={home.gold} />
               </LinearGradient>
-              <Text style={styles.emptyTitle}>Henüz özel gün yok</Text>
-              <Text style={styles.emptyText}>
-                Sevdiklerinin doğum günlerini ve yıl dönümlerini ekle, sürpriz pastanı
-                hazırlaman için önceden hatırlatalım.
-              </Text>
+              <Text style={styles.emptyTitle}>{tx("Henüz özel gün yok")}</Text>
+              <Text style={styles.emptyText}>{tx("Sevdiklerinin doğum günlerini ve yıl dönümlerini ekle, sürpriz pastanı hazırlaman için önceden hatırlatalım.")}</Text>
               {!isAdding && (
                 <Pressable
                   accessibilityRole="button"
@@ -722,7 +719,7 @@ export default function OccasionsModal({
                   style={({ pressed }) => [styles.emptyCta, pressed && styles.pressed]}
                 >
                   <PlusIcon size={16} color={CREAM} />
-                  <Text style={styles.emptyCtaText}>İlk Özel Günü Ekle</Text>
+                  <Text style={styles.emptyCtaText}>{tx("İlk Özel Günü Ekle")}</Text>
                 </Pressable>
               )}
             </View>
@@ -733,7 +730,7 @@ export default function OccasionsModal({
               {rest.length > 0 && (
                 <View style={styles.listSection}>
                   <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Takvimdekiler</Text>
+                    <Text style={styles.sectionTitle}>{tx("Takvimdekiler")}</Text>
                     <View style={styles.sectionLine} />
                   </View>
                   {rest.map(renderOccasionCard)}

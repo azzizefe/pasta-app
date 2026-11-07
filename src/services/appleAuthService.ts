@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { tx } from '../i18n/tx';
 
 export interface AppleUser {
   id: string;
@@ -56,7 +57,7 @@ export async function signInWithApple(): Promise<AppleAuthResult> {
     if (!isAvailable) {
       return {
         success: false,
-        error: 'Bu cihazda Apple ile Giriş Yap kullanılamıyor.',
+        error: tx("Bu cihazda Apple ile Giriş Yap kullanılamıyor."),
       };
     }
 
@@ -81,7 +82,7 @@ export async function signInWithApple(): Promise<AppleAuthResult> {
       user: {
         id: credential.user,
         email: credential.email,
-        name: fullName || 'Apple Kullanıcısı',
+        name: fullName || tx("Apple Kullanıcısı"),
         identityToken: credential.identityToken,
         authorizationCode: credential.authorizationCode,
       },
@@ -91,14 +92,14 @@ export async function signInWithApple(): Promise<AppleAuthResult> {
     if (error.code === 'ERR_REQUEST_CANCELED') {
       return {
         success: false,
-        error: 'Giriş işlemi iptal edildi.',
+        error: tx("Giriş işlemi iptal edildi."),
       };
     }
 
     console.error('Apple ile giriş hatası:', error);
     return {
       success: false,
-      error: error?.message || 'Apple ile giriş yapılırken bir sorun oluştu.',
+      error: error?.message || tx("Apple ile giriş yapılırken bir sorun oluştu."),
     };
   }
 }

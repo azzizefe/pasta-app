@@ -80,3 +80,28 @@ EXPO_PUBLIC_AI_BACKEND_URL=https://api.lumieresucree.app
          ▼
 [Mobil İstemci]
 ```
+
+---
+
+## Prompt Injection Koruması
+
+Tüm kurallar `prompt-guard.js` içinde; Express sunucusu, Cloudflare Worker ve mobil uygulama aynı kuralları kullanır.
+
+- Kullanıcı metni ve tüm pasta detayları (ek notlar, lezzet, etiketler) saldırı kalıplarına karşı taranır (görünmez karakter, `1gn0re` gibi yazımlar, Türkçe ifadeler dahil).
+- Kullanıcı metni talimatlardan ayrı bir blokta gönderilir; tarif için kurallar `systemInstruction` içindedir.
+- Model adı izinli listeyle sınırlıdır, token sayısı 10.000 ile sınırlıdır.
+- İlham fotoğrafının gerçek bir JPEG/PNG/WEBP olduğu ve 8 MB'ı aşmadığı kontrol edilir.
+- Tarif çıktısından link, e-posta ve HTML temizlenir; talimat metni sızarsa yanıt reddedilir.
+
+`prompt-guard.js` değiştirildikten sonra Worker kopyasını güncelle ve testleri çalıştır:
+
+```bash
+node sync-guard.js
+node --test
+```
+
+---
+
+## Kendi Ubuntu sunucuna kurulum (Hostinger VPS vb.)
+
+Adım adım rehber: [deploy/KURULUM.md](deploy/KURULUM.md) (systemd servisi + Nginx + HTTPS).

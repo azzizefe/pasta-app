@@ -12,6 +12,8 @@ import { ChefHatIcon, SparkleIcon } from './Icons';
 import { PressableScale } from './motion';
 import { CakeDetails, CakeKind } from '../types/savedCake';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 export interface ShowcaseTemplate {
   id: string;
@@ -168,15 +170,16 @@ interface Props {
 }
 
 export default function ShowcaseCarousel({ onSelectTemplate }: Props) {
+  useTx();
   return (
     <View style={styles.root}>
       <View style={styles.headerRow}>
         <View style={styles.titleGroup}>
           <View style={styles.eyebrowRow}>
             <SparkleIcon size={12} color={home.accentGold} />
-            <Text style={styles.eyebrow}>HAUTE PÂTISSERIE VİTRİNİ</Text>
+            <Text style={styles.eyebrow}>{tx("HAUTE PÂTISSERIE VİTRİNİ")}</Text>
           </View>
-          <Text style={styles.sectionTitle}>Hazır Şablonlarla Başla</Text>
+          <Text style={styles.sectionTitle}>{tx("Hazır Şablonlarla Başla")}</Text>
         </View>
       </View>
 
@@ -190,7 +193,7 @@ export default function ShowcaseCarousel({ onSelectTemplate }: Props) {
           <PressableScale
             key={tpl.id}
             accessibilityRole="button"
-            accessibilityLabel={`${tpl.title} şablonunu seç`}
+            accessibilityLabel={tx("{title} şablonunu seç", { title: tpl.title })}
             onPress={() => onSelectTemplate(tpl.kind, tpl.details)}
             scaleTo={0.97}
             contentStyle={styles.card}
@@ -202,11 +205,11 @@ export default function ShowcaseCarousel({ onSelectTemplate }: Props) {
               style={styles.artBox}
             >
               <View style={styles.badgePill}>
-                <Text style={styles.badgeText}>{tpl.badge}</Text>
+                <Text style={styles.badgeText}>{tx(tpl.badge)}</Text>
               </View>
               <Image
                 source={tpl.image}
-                accessibilityLabel={tpl.title}
+                accessibilityLabel={tx(tpl.title)}
                 style={styles.image}
                 contentFit="contain"
                 cachePolicy="memory-disk"
@@ -215,15 +218,15 @@ export default function ShowcaseCarousel({ onSelectTemplate }: Props) {
 
             <View style={styles.body}>
               <Text style={styles.cardTitle} numberOfLines={1}>
-                {tpl.title}
+                {tx(tpl.title)}
               </Text>
               <Text style={styles.cardSubtitle} numberOfLines={2}>
-                {tpl.subtitle}
+                {tx(tpl.subtitle)}
               </Text>
 
               <View style={styles.ctaRow}>
                 <ChefHatIcon size={13} color="#FFFDF9" />
-                <Text style={styles.ctaText}>Şablonu Özelleştir</Text>
+                <Text style={styles.ctaText}>{tx("Şablonu Özelleştir")}</Text>
               </View>
             </View>
           </PressableScale>

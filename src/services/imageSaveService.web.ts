@@ -1,4 +1,5 @@
-export interface SaveImageResult {
+
+import { tx } from '../i18n/tx';export interface SaveImageResult {
   success: boolean;
   message: string;
 }
@@ -9,7 +10,7 @@ export interface SaveImageResult {
  */
 export async function saveCakeImageToDevice(
   imageUri: string,
-  cakeTitle: string = 'pasta'
+  cakeTitle: string = tx("pasta")
 ): Promise<SaveImageResult> {
   try {
     const safeTitle = cakeTitle
@@ -49,13 +50,13 @@ export async function saveCakeImageToDevice(
 
     return {
       success: true,
-      message: 'Görsel bilgisayarınıza indirildi! ⬇',
+      message: tx("Görsel bilgisayarınıza indirildi! ⬇"),
     };
   } catch (error: any) {
     console.error('Web indirme hatası:', error);
     return {
       success: false,
-      message: error?.message || 'Görsel indirilemedi.',
+      message: error?.message || tx("Görsel indirilemedi."),
     };
   }
 }

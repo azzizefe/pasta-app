@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée 可让你选择请柬或灵感照片，为你的蛋糕设计带来灵感。",
+    "NSPhotoLibraryAddUsageDescription": "需要权限才能将你创作的蛋糕设计以高分辨率保存到照片图库。",
+    "NSCameraUsageDescription": "拍下为你的特别日子带来灵感的细节，把它变成蛋糕设计。"
+  }
+}

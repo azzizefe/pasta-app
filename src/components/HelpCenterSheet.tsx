@@ -10,6 +10,8 @@ import {
   INITIAL_CREDITS,
 } from '../context/CreditsContext';
 import { home } from '../theme/theme';
+import { getTxLanguage, tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -24,7 +26,7 @@ const FAQ_GROUPS: FaqGroup[] = [
     items: [
       {
         q: 'Bir pasta tasarımı kaç kredi?',
-        a: `Her pasta tasarımı ${CREDITS_PER_GENERATION} kredidir ve stüdyo kalitesinde 4K Ultra HD olarak üretilir. Yeni hesaplara hoş geldin hediyesi olarak ${INITIAL_CREDITS} kredi tanımlanır.`,
+        a: 'Her pasta tasarımı {credits} kredidir ve stüdyo kalitesinde 4K Ultra HD olarak üretilir. Yeni hesaplara hoş geldin hediyesi olarak {welcome} kredi tanımlanır.',
       },
       {
         q: 'Büyük paketler ne kadar avantajlı?',
@@ -53,11 +55,11 @@ const FAQ_GROUPS: FaqGroup[] = [
       },
       {
         q: 'Oluşan tasarımı nasıl değiştiririm?',
-        a: `Sonuç ekranında "Düzenle"ye dokun ve değiştirmek istediğin detayları yaz. Her yeni görsel ${CREDITS_PER_GENERATION} kredi kullanır.`,
+        a: 'Sonuç ekranında "Düzenle"ye dokun ve değiştirmek istediğin detayları yaz. Her yeni görsel {credits} kredi kullanır.',
       },
       {
         q: 'Tasarımlarım nerede saklanıyor?',
-        a: 'Oluşturduğun her tasarım Saved sekmesindeki koleksiyonuna otomatik kaydedilir. "Görseli İndir" ile fotoğraf galerine de kaydedebilirsin.',
+        a: 'Oluşturduğun her tasarım Koleksiyon sekmesine otomatik kaydedilir. "Görseli İndir" ile fotoğraf galerine de kaydedebilirsin.',
       },
     ],
   },
@@ -79,7 +81,7 @@ const FAQ_GROUPS: FaqGroup[] = [
     items: [
       {
         q: 'Uygulama dilini nasıl değiştiririm?',
-        a: 'Profil > Uygulama Ayarları > Uygulama Dili yolunu izleyerek Türkçe, İngilizce, Fransızca veya Arapça seçebilirsin.',
+        a: 'Uygulamanın dili, cihazının bölge ayarına göre otomatik olarak belirlenir. Değiştirmek için cihazının Ayarlar > Genel > Dil ve Bölge bölümünü kullanabilirsin.',
       },
       {
         q: 'Hesabımı nasıl silerim?',
@@ -90,8 +92,11 @@ const FAQ_GROUPS: FaqGroup[] = [
 ];
 
 function normalize(text: string) {
-  return text.toLocaleLowerCase('tr-TR');
+  return text.toLocaleLowerCase(getTxLanguage() === 'tr' ? 'tr-TR' : undefined);
 }
+
+const FAQ_VARS = { credits: CREDITS_PER_GENERATION, welcome: INITIAL_CREDITS };
+const faqText = (text: string) => tx(text, FAQ_VARS);
 
 type Props = {
   visible: boolean;
@@ -100,6 +105,7 @@ type Props = {
 };
 
 export default function HelpCenterSheet({ visible, onClose, onContactSupport }: Props) {
+  useTx();
   const [query, setQuery] = useState('');
   const [openKey, setOpenKey] = useState<string | null>(null);
 
@@ -108,7 +114,7 @@ export default function HelpCenterSheet({ visible, onClose, onContactSupport }: 
     if (!q) return FAQ_GROUPS;
     return FAQ_GROUPS.map((g) => ({
       ...g,
-      items: g.items.filter((f) => normalize(f.q).includes(q) || normalize(f.a).includes(q)),
+      items: g.items.filter((f) => normalize(faqText(f.q)).includes(q) || normalize(faqText(f.a)).includes(q)),
     })).filter((g) => g.items.length > 0);
   }, [query]);
 
@@ -118,14 +124,14 @@ export default function HelpCenterSheet({ visible, onClose, onContactSupport }: 
   };
 
   return (
-    <InfoSheet visible={visible} title="Yardım Merkezi" subtitle="Sık sorulan sorular" onClose={onClose}>
+    <InfoSheet visible={visible} title={tx("Yardım Merkezi")} subtitle={tx("Sık sorulan sorular")} onClose={onClose}>
       <View style={styles.searchBox}>
         <HelpCircleIcon size={18} color={home.muted} />
         <TextInput
           style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
-          placeholder="Ne öğrenmek istersin?"
+          placeholder={tx("Ne öğrenmek istersin?")}
           placeholderTextColor="rgba(110, 85, 55, 0.5)"
           returnKeyType="search"
           autoCorrect={false}
@@ -134,15 +140,13 @@ export default function HelpCenterSheet({ visible, onClose, onContactSupport }: 
 
       {groups.length === 0 ? (
         <View style={styles.noResult}>
-          <Text style={styles.noResultTitle}>Sonuç bulunamadı</Text>
-          <Text style={styles.noResultText}>
-            Farklı bir kelime dene ya da aşağıdan bize doğrudan yaz.
-          </Text>
+          <Text style={styles.noResultTitle}>{tx("Sonuç bulunamadı")}</Text>
+          <Text style={styles.noResultText}>{tx("Farklı bir kelime dene ya da aşağıdan bize doğrudan yaz.")}</Text>
         </View>
       ) : (
         groups.map((group) => (
           <View key={group.title}>
-            <Text style={sheetStyles.sectionLabel}>{group.title.toLocaleUpperCase('tr-TR')}</Text>
+            <Text style={sheetStyles.sectionLabel}>{tx(group.title).toLocaleUpperCase(getTxLanguage() === 'tr' ? 'tr-TR' : undefined)}</Text>
             <View style={sheetStyles.card}>
               {group.items.map((item, idx) => {
                 const key = `${group.title}-${item.q}`;
@@ -156,12 +160,12 @@ export default function HelpCenterSheet({ visible, onClose, onContactSupport }: 
                     style={[styles.faq, idx < group.items.length - 1 && styles.faqDivider]}
                   >
                     <View style={styles.faqHead}>
-                      <Text style={[styles.faqQ, isOpen && styles.faqQOpen]}>{item.q}</Text>
+                      <Text style={[styles.faqQ, isOpen && styles.faqQOpen]}>{faqText(item.q)}</Text>
                       <View style={[styles.chevron, isOpen && styles.chevronOpen]}>
                         <ChevronDownIcon size={16} color={isOpen ? home.gold : home.muted} />
                       </View>
                     </View>
-                    {isOpen && <Text style={styles.faqA}>{item.a}</Text>}
+                    {isOpen && <Text style={styles.faqA}>{faqText(item.a)}</Text>}
                   </Pressable>
                 );
               })}
@@ -177,17 +181,15 @@ export default function HelpCenterSheet({ visible, onClose, onContactSupport }: 
         style={styles.contactCard}
       >
         <View style={styles.contactGlow} />
-        <Text style={styles.contactTitle}>Aradığını bulamadın mı?</Text>
-        <Text style={styles.contactText}>
-          Ekibimize yaz, sorununu birlikte çözelim.
-        </Text>
+        <Text style={styles.contactTitle}>{tx("Aradığını bulamadın mı?")}</Text>
+        <Text style={styles.contactText}>{tx("Ekibimize yaz, sorununu birlikte çözelim.")}</Text>
         <Pressable
           accessibilityRole="button"
           onPress={onContactSupport}
           style={({ pressed }) => [styles.contactBtn, pressed && sheetStyles.pressed]}
         >
           <MailIcon size={16} color={home.ink} />
-          <Text style={styles.contactBtnText}>Bize Yaz</Text>
+          <Text style={styles.contactBtnText}>{tx("Bize Yaz")}</Text>
         </Pressable>
       </LinearGradient>
     </InfoSheet>

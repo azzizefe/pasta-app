@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée memungkinkan Anda memilih foto undangan atau inspirasi untuk desain kue Anda.",
+    "NSPhotoLibraryAddUsageDescription": "Izin diperlukan untuk menyimpan desain kue yang Anda buat ke galeri foto dalam resolusi tinggi.",
+    "NSCameraUsageDescription": "Ambil foto detail yang menginspirasi hari istimewa Anda dan ubah menjadi desain kue."
+  }
+}

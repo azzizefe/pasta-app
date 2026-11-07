@@ -1,0 +1,7 @@
+{
+  "ios": {
+    "NSPhotoLibraryUsageDescription": "Lumière Sucrée, pasta tasarımlarınıza ilham vermesi için davetiye veya konsept fotoğraflarını seçmenize olanak tanır.",
+    "NSPhotoLibraryAddUsageDescription": "Oluşturduğunuz şaheser pasta tasarımlarını fotoğraf galerinize yüksek çözünürlükte kaydetmek için izin gereklidir.",
+    "NSCameraUsageDescription": "Özel gününüz için ilham aldığınız detayların anlık fotoğrafını çekerek pasta tasarımına dönüştürmenizi sağlar."
+  }
+}

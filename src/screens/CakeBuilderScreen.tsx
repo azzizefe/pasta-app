@@ -1,9 +1,10 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
   TextInput,
@@ -20,16 +21,18 @@ import ReferenceImagePicker from '../components/ReferenceImagePicker';
 import { PressableScale, ShineSweep } from '../components/motion';
 import {
   CREDITS_PER_GENERATION,
-  CREDITS_PER_GENERATION_LIST_PRICE,
   getGenerationCost,
-  getGenerationListPrice,
   useCredits,
 } from '../context/CreditsContext';
 import type { CakeDetails, ImageQuality } from '../types/savedCake';
 import CakeResultScreen from './CakeResultScreen';
 import { evaluateBudget } from '../utils/budgetHelper';
+import { MAX_EXTRA_REQUEST_LENGTH } from '../utils/security';
 import { fonts, home } from '../theme/theme';
 import { ENV } from '../config/env';
+import { getTxLocale, tx } from '../i18n/tx';
+import { getDefaultCurrency } from '../i18n/region';
+import { useTx } from '../context/LanguageContext';
 
 export type CakeKind = 'wedding' | 'birthday' | 'engagement' | 'custom' | 'diy';
 
@@ -54,9 +57,9 @@ const DECOR_OPTIONS: Option[] = [
   { label: 'Gösterişli', phrase: 'gösterişli ve detaylı süslemeli' },
 ];
 
-/** Capitalizes using Turkish case rules so "i" becomes "İ", not "I". */
+/** Capitalizes with the app language's case rules (Turkish "i" becomes "İ", English "i" stays "I"). */
 function capitalize(text: string) {
-  return text.charAt(0).toLocaleUpperCase('tr-TR') + text.slice(1);
+  return text.charAt(0).toLocaleUpperCase(getTxLocale()) + text.slice(1);
 }
 
 
@@ -68,16 +71,17 @@ type ChipProps = {
 };
 
 function Chip({ option, active, onPress }: ChipProps) {
+  useTx();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
-      accessibilityLabel={option.label}
+      accessibilityLabel={tx(option.label)}
       onPress={onPress}
       android_ripple={{ color: home.divider }}
       style={[styles.chip, active && styles.chipActive]}
     >
-      <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{option.label}</Text>
+      <Text style={[styles.chipLabel, active && styles.chipLabelActive]}>{tx(option.label)}</Text>
     </Pressable>
   );
 }
@@ -92,9 +96,10 @@ type SectionProps = {
 
 /** Tapping the active chip again clears the selection, like a checkbox. */
 function OptionSection({ title, options, selected, onSelect }: SectionProps) {
+  useTx();
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{title}</Text>
+      <Text style={styles.sectionLabel}>{tx(title)}</Text>
       <View style={styles.chipRow}>
         {options.map((option) => (
           <Chip
@@ -129,44 +134,70 @@ function NumberField({
   maxLength,
   suggestions,
 }: NumberFieldProps) {
+  useTx();
+  const isPreset = (v: string) => !!suggestions?.some((item) => item.value === v.trim());
+  // The typed field only appears for values the presets don't cover.
+  const [showCustom, setShowCustom] = useState(
+    !suggestions || suggestions.length === 0 || (value.trim() !== '' && !isPreset(value)),
+  );
+
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{title}</Text>
+      <Text style={styles.sectionLabel}>{tx(title)}</Text>
       {suggestions && suggestions.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.suggestionRow}
-        >
+        <View style={styles.suggestionRow}>
           {suggestions.map((item) => {
-            const active = value.trim() === item.value;
+            const active = !showCustom && value.trim() === item.value;
             return (
               <Pressable
                 key={item.value}
                 accessibilityRole="button"
-                onPress={() => onChangeText(active ? '' : item.value)}
+                accessibilityState={{ selected: active }}
+                onPress={() => {
+                  setShowCustom(false);
+                  onChangeText(active ? '' : item.value);
+                }}
                 style={[styles.suggestionChip, active && styles.suggestionChipActive]}
               >
                 <Text style={[styles.suggestionText, active && styles.suggestionTextActive]}>
-                  {item.label}
+                  {tx(item.label)}
                 </Text>
               </Pressable>
             );
           })}
-        </ScrollView>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: showCustom }}
+            onPress={() => {
+              if (showCustom) {
+                setShowCustom(false);
+                onChangeText('');
+              } else {
+                setShowCustom(true);
+                if (isPreset(value)) onChangeText('');
+              }
+            }}
+            style={[styles.suggestionChip, showCustom && styles.suggestionChipActive]}
+          >
+            <Text style={[styles.suggestionText, showCustom && styles.suggestionTextActive]}>{tx("Diğer")}</Text>
+          </Pressable>
+        </View>
       )}
-      <View style={styles.numberInputRow}>
-        <TextInput
-          value={value}
-          onChangeText={onChangeText}
-          placeholder={placeholder}
-          placeholderTextColor={home.muted}
-          keyboardType="number-pad"
-          maxLength={maxLength}
-          style={styles.numberInput}
-        />
-        {suffix ? <Text style={styles.numberSuffix}>{suffix}</Text> : null}
-      </View>
+      {showCustom && (
+        <View style={styles.numberInputRow}>
+          <TextInput
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={home.muted}
+            keyboardType="number-pad"
+            maxLength={maxLength}
+            style={styles.numberInput}
+            autoFocus={!!suggestions && suggestions.length > 0}
+          />
+          {suffix ? <Text style={styles.numberSuffix}>{suffix}</Text> : null}
+        </View>
+      )}
     </View>
   );
 }
@@ -181,16 +212,14 @@ type TextFieldProps = {
 
 /** A free-typed word or phrase, for values too varied for a chip list. */
 function TextField({ title, value, onChangeText, placeholder, suggestions }: TextFieldProps) {
+  useTx();
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{title}</Text>
+      <Text style={styles.sectionLabel}>{tx(title)}</Text>
       {suggestions && suggestions.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.suggestionRow}
-        >
-          {suggestions.map((item) => {
+        <View style={styles.suggestionRow}>
+          {suggestions.map((source) => {
+            const item = tx(source);
             const active = value.trim().toLocaleLowerCase('tr-TR') === item.toLocaleLowerCase('tr-TR');
             return (
               <Pressable
@@ -205,7 +234,7 @@ function TextField({ title, value, onChangeText, placeholder, suggestions }: Tex
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
       )}
       <TextInput
         value={value}
@@ -229,16 +258,23 @@ type TagFieldProps = {
 
 /** Type a word, tap +, and it drops in as a removable tag below. */
 function TagField({ title, placeholder, tags, onAdd, onRemove, suggestions }: TagFieldProps) {
+  useTx();
+  const [draft, setDraft] = useState('');
+
+  const submit = () => {
+    const value = draft.trim();
+    if (!value) return;
+    onAdd(value);
+    setDraft('');
+  };
+
   return (
     <View style={styles.section}>
-      <Text style={styles.sectionLabel}>{title}</Text>
+      <Text style={styles.sectionLabel}>{tx(title)}</Text>
       {suggestions && suggestions.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.suggestionRow}
-        >
-          {suggestions.map((item) => {
+        <View style={styles.suggestionRow}>
+          {suggestions.map((source) => {
+            const item = tx(source);
             const active = tags.some(
               (t) => t.toLocaleLowerCase('tr-TR') === item.toLocaleLowerCase('tr-TR'),
             );
@@ -253,8 +289,29 @@ function TagField({ title, placeholder, tags, onAdd, onRemove, suggestions }: Ta
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
       )}
+      <View style={styles.tagInputRow}>
+        <TextInput
+          value={draft}
+          onChangeText={setDraft}
+          placeholder={placeholder}
+          placeholderTextColor={home.muted}
+          returnKeyType="done"
+          blurOnSubmit={false}
+          onSubmitEditing={submit}
+          style={styles.tagInput}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={tx("Ekle")}
+          onPress={submit}
+          disabled={!draft.trim()}
+          style={[styles.tagAddButton, !draft.trim() && { opacity: 0.35 }]}
+        >
+          <PlusIcon size={18} color={home.ctaLabel} strokeWidth={2.4} />
+        </Pressable>
+      </View>
       <View style={styles.tagRow}>
         {tags.map((tag) => (
           <Pressable
@@ -291,6 +348,59 @@ function useTagList(initial: string[] = []): [string[], (tag: string) => void, (
   return [tags, add, remove];
 }
 
+const STEPS = [
+  { label: 'Temel', hint: 'Fotoğraf, kişi sayısı ve bütçe' },
+  { label: 'Stil', hint: 'Tema, renkler ve süslemeler' },
+  { label: 'Lezzet', hint: 'Hamur, dolgu ve son notlar' },
+] as const;
+
+/** Three-part progress bar; every step is optional, so any segment can be tapped. */
+function StepTabs({ current, onSelect }: { current: number; onSelect: (step: number) => void }) {
+  useTx();
+  return (
+    <View style={styles.stepWrap}>
+      <View accessibilityRole="tablist" style={styles.stepRow}>
+        {STEPS.map((item, index) => {
+          const active = index === current;
+          const reached = index <= current;
+          return (
+            <Pressable
+              key={item.label}
+              accessibilityRole="tab"
+              accessibilityLabel={tx(item.label)}
+              accessibilityState={{ selected: active }}
+              aria-selected={active}
+              onPress={() => onSelect(index)}
+              hitSlop={6}
+              style={styles.stepTab}
+            >
+              <View style={[styles.stepBar, reached && styles.stepBarReached]} />
+              <Text style={[styles.stepLabel, active && styles.stepLabelActive]}>
+                {index + 1}. {tx(item.label)}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.stepHint}>{tx("{hint} · hepsi isteğe bağlı", { hint: tx(STEPS[current].hint) })}</Text>
+    </View>
+  );
+}
+
+function NextStepButton({ label, onPress }: { label: string; onPress: () => void }) {
+  useTx();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={tx("Sonraki adım: {label}", { label })}
+      onPress={onPress}
+      style={styles.nextStep}
+    >
+      <Text style={styles.nextStepText}>{tx("Sonraki: {label} →", { label })}</Text>
+    </Pressable>
+  );
+}
+
 type Props = {
   kind: CakeKind;
   initialDetails?: CakeDetails;
@@ -302,9 +412,15 @@ type Props = {
  * decoration density, then compose that into a single design prompt.
  */
 export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Props) {
+  useTx();
   const insets = useSafeAreaInsets();
   const info = CAKE_KIND_INFO[kind];
-  const { credits, hasEnoughCredits, openPurchaseModal } = useCredits();
+  const {
+    credits,
+    hasEnoughCredits,
+    openPurchaseModal,
+    isSecondCakeDiscountActive,
+  } = useCredits();
 
   const [guestCount, setGuestCount] = useState(
     initialDetails?.guests ? String(initialDetails.guests) : '',
@@ -315,13 +431,12 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
   const [budget, setBudget] = useState(
     initialDetails?.budget ? String(initialDetails.budget) : '',
   );
-  const [currency, setCurrency] = useState(initialDetails?.currency ?? 'TRY');
+  const [currency, setCurrency] = useState(() => initialDetails?.currency ?? getDefaultCurrency());
   const [isCurrencyPickerOpen, setIsCurrencyPickerOpen] = useState(false);
   const [cakeType, setCakeType] = useState(initialDetails?.flavor ?? '');
   const [coating, setCoating] = useState(initialDetails?.coating ?? '');
   const [palette, setPalette] = useState(initialDetails?.color ?? '');
   const [shape, setShape] = useState(initialDetails?.shape ?? '');
-  const [writing, setWriting] = useState(initialDetails?.writing ?? '');
   const [decor, setDecor] = useState<Option | null>(
     initialDetails?.decor
       ? DECOR_OPTIONS.find((o) => o.label === initialDetails.decor) ?? null
@@ -370,28 +485,28 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
   }, [budget, guestCount, currency]);
 
   const prompt = useMemo(() => {
-    const guestPhrase = guestCount ? `${guestCount} kişilik` : null;
-    const tierPhrase = tierCount ? `${tierCount} katlı` : null;
+    const guestPhrase = guestCount ? tx('{n} kişilik', { n: guestCount }) : null;
+    const tierPhrase = tierCount ? tx('{n} katlı', { n: tierCount }) : null;
     const budgetPhrase = budgetEvaluation.hasBudget
-      ? `bütçe odaklı tasarım (~${budgetEvaluation.portionWeightGr}g porsiyon ölçeğinde ${
-          budgetEvaluation.tier === 'luxury'
-            ? 'ultra lüks haute pâtisserie detaylarıyla'
-            : budgetEvaluation.tier === 'under_minimum' || budgetEvaluation.tier === 'economic'
-            ? 'akıllı ve minimalist butik tasarımıyla'
-            : 'standart butik pastacılık kalitesinde'
-        })`
+      ? tx('bütçe odaklı tasarım (~{grams}g porsiyon ölçeğinde {style})', {
+          grams: budgetEvaluation.portionWeightGr,
+          style:
+            budgetEvaluation.tier === 'luxury'
+              ? tx('ultra lüks haute pâtisserie detaylarıyla')
+              : budgetEvaluation.tier === 'under_minimum' || budgetEvaluation.tier === 'economic'
+              ? tx('akıllı ve minimalist butik tasarımıyla')
+              : tx('standart butik pastacılık kalitesinde'),
+        })
       : null;
     // Lowercased so a capitalized word (as typed) doesn't stand out mid-sentence.
     const toLower = (text: string) => text.trim().toLocaleLowerCase('tr-TR');
-    const cakeTypePhrase = cakeType.trim() ? `${toLower(cakeType)} bazlı` : null;
-    const coatingPhrase = coating.trim() ? `${toLower(coating)} kaplamalı` : null;
-    const palettePhrase = palette.trim() ? `${toLower(palette)} renklerinde` : null;
+    const cakeTypePhrase = cakeType.trim() ? tx('{value} bazlı', { value: toLower(cakeType) }) : null;
+    const coatingPhrase = coating.trim() ? tx('{value} kaplamalı', { value: toLower(coating) }) : null;
+    const palettePhrase = palette.trim() ? tx('{value} renklerinde', { value: toLower(palette) }) : null;
     // The shape field's own placeholder ("kalp şeklinde") already reads as a
     // finished phrase, so it goes in as typed instead of getting a suffix.
     const shapePhrase = shape.trim() ? toLower(shape) : null;
-    // The written text keeps its own casing — it's literal typography, not an adjective.
-    const writingPhrase = writing.trim() ? `üzerinde "${writing.trim()}" yazılı` : null;
-    const themePhrase = theme.trim() ? `${toLower(theme)} temalı` : null;
+    const themePhrase = theme.trim() ? tx('{value} temalı', { value: toLower(theme) }) : null;
     const texturePhrase = texture.trim() ? toLower(texture) : null;
     const fragments = [
       guestPhrase,
@@ -400,26 +515,26 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
       themePhrase,
       palettePhrase,
       cakeTypePhrase,
-      ...fillingTags.map((tag) => `${toLower(tag)} dolgulu`),
+      ...fillingTags.map((tag) => tx('{value} dolgulu', { value: toLower(tag) })),
       coatingPhrase,
       texturePhrase,
-      ...finishTags.map((tag) => `${toLower(tag)} bitişli`),
-      ...metallicTags.map((tag) => `${toLower(tag)} detaylı`),
-      ...dripTags.map((tag) => `${toLower(tag)} renginde drip efektli`),
+      ...finishTags.map((tag) => tx('{value} bitişli', { value: toLower(tag) })),
+      ...metallicTags.map((tag) => tx('{value} detaylı', { value: toLower(tag) })),
+      ...dripTags.map((tag) => tx('{value} renginde drip efektli', { value: toLower(tag) })),
       shapePhrase,
-      decor?.phrase,
-      ...decorTags.map((tag) => `${toLower(tag)} detaylı`),
-      writingPhrase,
-      ...backgroundTags.map((tag) => `${toLower(tag)} arka planlı`),
+      decor ? tx(decor.phrase) : null,
+      ...decorTags.map((tag) => tx('{value} detaylı', { value: toLower(tag) })),
+      ...backgroundTags.map((tag) => tx('{value} arka planlı', { value: toLower(tag) })),
       ...dietTags.map((tag) => toLower(tag)),
     ].filter((phrase): phrase is string => !!phrase);
 
     const sentence =
       fragments.length > 0
-        ? `${capitalize(fragments.join(', '))} bir ${info.phrase} tasarla.`
-        : `Bir ${info.phrase} tasarla.`;
+        ? tx('{details} bir {kind} tasarla.', { details: capitalize(fragments.join(', ')), kind: tx(info.phrase) })
+        : tx('Bir {kind} tasarla.', { kind: tx(info.phrase) });
 
-    const trimmedNotes = notes.trim();
+    // Satır sonları ve fazla boşluklar tek boşluğa iner; cümle tek parça kalır.
+    const trimmedNotes = notes.replace(/\s+/g, ' ').trim().slice(0, MAX_EXTRA_REQUEST_LENGTH);
     return trimmedNotes ? `${sentence} Ek istek: ${trimmedNotes}` : sentence;
   }, [
     guestCount,
@@ -436,7 +551,6 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
     theme,
     decor,
     decorTags,
-    writing,
     backgroundTags,
     dietTags,
     notes,
@@ -460,34 +574,42 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
     theme.trim() ||
     decor ||
     decorTags.length > 0 ||
-    writing.trim() ||
     backgroundTags.length > 0 ||
     dietTags.length > 0 ||
     notes.trim().length > 0 ||
     Boolean(referenceImageUri);
 
+  const [step, setStep] = useState(0);
+  const scrollRef = useRef<ScrollViewInstance>(null);
+  const goToStep = useCallback((next: number) => {
+    setStep(next);
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+
   const [showResult, setShowResult] = useState(false);
   const quality: ImageQuality = '4k';
-  const cost = getGenerationCost(quality, kind);
-  const listPrice = getGenerationListPrice(kind);
+  const cost = getGenerationCost(quality, kind, isSecondCakeDiscountActive);
+  // Only a real, active discount shows a struck-through price; there is no permanent "was" price.
+  const listPrice = isSecondCakeDiscountActive ? CREDITS_PER_GENERATION : cost;
 
   const handleGenerate = useCallback(() => {
     if (!hasSelection) {
-      showAlert('Eksik seçim', 'Tasarımı oluşturmadan önce en az bir seçenek belirle veya ilham fotoğrafı yükle.');
+      showAlert(tx("Eksik seçim"), tx("Tasarımı oluşturmadan önce en az bir seçenek belirle veya ilham fotoğrafı yükle."));
       return;
     }
     if (!hasEnoughCredits(cost)) {
       showAlert(
-        'Yetersiz Kredi',
-        `Fotoğraf oluşturmak için ${cost} kredi gereklidir. Mevcut bakiyen: ${credits} Kredi.`,
+        tx("Yetersiz Kredi"),
+        tx("Bu tasarım için {cost} kredi gerekiyor, bakiyende {credits} kredi var. Kredi paketlerine göz atmak ister misin?", { cost, credits }),
         [
-          { text: 'Vazgeç', style: 'cancel' },
-          { text: 'Kredi Yükle', onPress: openPurchaseModal },
+          { text: tx("Vazgeç"), style: 'cancel' },
+          { text: tx("Paketleri Gör"), onPress: openPurchaseModal },
         ],
       );
       return;
     }
     console.log('Generated prompt:', prompt);
+    // İndirim burada harcanmaz: sonuç ekranı 10 krediyi düşüp görsel üretilince harcar.
     setShowResult(true);
   }, [hasSelection, hasEnoughCredits, cost, credits, openPurchaseModal, prompt]);
 
@@ -514,7 +636,6 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
           coating: coating.trim() || undefined,
           color: palette.trim() || undefined,
           decor: decor?.label,
-          writing: writing.trim() || undefined,
           fillingTags: fillingTags.length > 0 ? fillingTags : undefined,
           textureTags: texture.trim() ? [texture.trim()] : undefined,
           finishTags: finishTags.length > 0 ? finishTags : undefined,
@@ -548,7 +669,7 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Geri"
+          accessibilityLabel={tx("Geri")}
           onPress={onClose}
           hitSlop={10}
           style={styles.backButton}
@@ -557,12 +678,12 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
         </Pressable>
 
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {info.title}
+          {tx(info.title)}
         </Text>
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Kredi Bakiyesi"
+          accessibilityLabel={tx("Kredi Bakiyesi")}
           onPress={openPurchaseModal}
           style={styles.headerCreditBadge}
         >
@@ -571,341 +692,315 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
         </Pressable>
       </View>
 
+      <StepTabs current={step} onSelect={goToStep} />
+
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={insets.top}
       >
         <ScrollView
+          ref={scrollRef}
           style={styles.flex}
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* İlham Fotoğrafı (Image-to-Cake) */}
-          <ReferenceImagePicker
-            imageUri={referenceImageUri}
-            onImageSelected={(uri, base64) => {
-              setReferenceImageUri(uri);
-              setReferenceImageBase64(base64);
-            }}
-            onImageRemoved={() => {
-              setReferenceImageUri(null);
-              setReferenceImageBase64(null);
-            }}
-          />
-
-
-
-          <NumberField
-            title="KAÇ KİŞİLİK?"
-            value={guestCount}
-            onChangeText={handleGuestCountChange}
-            placeholder="Örn: 25"
-            maxLength={4}
-            suggestions={[
-              { label: '6 Kişi', value: '6' },
-              { label: '10 Kişi', value: '10' },
-              { label: '15 Kişi', value: '15' },
-              { label: '25 Kişi', value: '25' },
-              { label: '40 Kişi', value: '40' },
-              { label: '50+ Kişi', value: '50' },
-            ]}
-          />
-
-          <NumberField
-            title="KAT SAYISI"
-            value={tierCount}
-            onChangeText={handleTierCountChange}
-            placeholder="Örn: 3"
-            maxLength={2}
-            suggestions={[
-              { label: '1 Katlı', value: '1' },
-              { label: '2 Katlı', value: '2' },
-              { label: '3 Katlı', value: '3' },
-              { label: '4 Katlı', value: '4' },
-            ]}
-          />
-
-          {/* Bütçe ve Para Birimi Seçici */}
-          <View style={styles.section}>
-            <View style={styles.budgetHeaderRow}>
-              <Text style={styles.sectionLabel}>PASTA BÜTÇESİ</Text>
-              <Text style={styles.budgetOptionalHint}>İSTEĞE BAĞLI / ÖNERİLEN</Text>
-            </View>
-            <View style={styles.budgetInputRow}>
-              <TextInput
-                value={budget}
-                onChangeText={handleBudgetChange}
-                placeholder={`Örn: ${budgetEvaluation.currency.placeholder}`}
-                placeholderTextColor={home.muted}
-                keyboardType="number-pad"
-                maxLength={8}
-                style={styles.budgetInput}
-              />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Para Birimi Seç: ${budgetEvaluation.currency.code}`}
-                onPress={() => setIsCurrencyPickerOpen(true)}
-                style={styles.currencySelectBtn}
-              >
-                <Text style={styles.currencyBtnFlag}>{budgetEvaluation.currency.flag}</Text>
-                <Text style={styles.currencyBtnText}>
-                  {budgetEvaluation.currency.symbol} {budgetEvaluation.currency.code}
+          {/* İkinci Pasta İndirim Banner'ı */}
+          {isSecondCakeDiscountActive && (
+            <View style={styles.secondCakeActiveBanner}>
+              <View style={styles.secondCakeActiveBannerLeft}>
+                <SparkleIcon size={15} color="#8A5A1C" />
+                <Text style={styles.secondCakeActiveBannerText}>{tx("Size Özel Fırsat: Bu tasarımınız")}{' '}<Text style={styles.bannerStrikeText}>{tx("15 Kredi")}</Text>{' '}{tx("yerine sadece")}{' '}<Text style={styles.bannerBoldText}>{tx("10 Kredi")}</Text>!
                 </Text>
-                <ChevronDownIcon size={14} color={home.ink} />
-              </Pressable>
+              </View>
+              <View style={styles.bannerDiscountBadge}>
+                <Text style={styles.bannerDiscountBadgeText}>{tx("%33 İndirim")}</Text>
+              </View>
             </View>
+          )}
 
-            {/* Akıllı Bütçe & Gramaj Değerlendirme Kartı */}
-            {budgetEvaluation.hasBudget && (
-              <View
-                style={[
-                  styles.budgetEvaluationCard,
-                  budgetEvaluation.badgeStatus === 'warning' && styles.budgetCardWarning,
-                  budgetEvaluation.badgeStatus === 'gold' && styles.budgetCardGold,
+          {step === 0 && (
+            <>
+              {/* İlham Fotoğrafı (Image-to-Cake) */}
+              <ReferenceImagePicker
+                imageUri={referenceImageUri}
+                onImageSelected={(uri, base64) => {
+                  setReferenceImageUri(uri);
+                  setReferenceImageBase64(base64);
+                }}
+                onImageRemoved={() => {
+                  setReferenceImageUri(null);
+                  setReferenceImageBase64(null);
+                }}
+              />
+
+              <NumberField
+                title="KAÇ KİŞİLİK?"
+                value={guestCount}
+                onChangeText={handleGuestCountChange}
+                placeholder={tx("Örn: 25")}
+                maxLength={4}
+                suggestions={[
+                  { label: '6 Kişi', value: '6' },
+                  { label: '10 Kişi', value: '10' },
+                  { label: '15 Kişi', value: '15' },
+                  { label: '25 Kişi', value: '25' },
+                  { label: '40 Kişi', value: '40' },
+                  { label: '50+ Kişi', value: '50' },
                 ]}
-              >
-                <View style={styles.budgetBadgeRow}>
+              />
+
+              <NumberField
+                title="KAT SAYISI"
+                value={tierCount}
+                onChangeText={handleTierCountChange}
+                placeholder={tx("Örn: 3")}
+                maxLength={2}
+                suggestions={[
+                  { label: '1 Katlı', value: '1' },
+                  { label: '2 Katlı', value: '2' },
+                  { label: '3 Katlı', value: '3' },
+                  { label: '4 Katlı', value: '4' },
+                ]}
+              />
+
+              {/* Bütçe ve Para Birimi Seçici */}
+              <View style={styles.section}>
+                <View style={styles.budgetHeaderRow}>
+                  <Text style={styles.sectionLabel}>{tx("PASTA BÜTÇESİ")}</Text>
+                  <Text style={styles.budgetOptionalHint}>{tx("İSTEĞE BAĞLI")}</Text>
+                </View>
+                <View style={styles.budgetInputRow}>
+                  <TextInput
+                    value={budget}
+                    onChangeText={handleBudgetChange}
+                    placeholder={tx("Örn: {placeholder}", { placeholder: budgetEvaluation.currency.placeholder })}
+                    placeholderTextColor={home.muted}
+                    keyboardType="number-pad"
+                    maxLength={8}
+                    style={styles.budgetInput}
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={tx("Para Birimi Seç: {code}", { code: budgetEvaluation.currency.code })}
+                    onPress={() => setIsCurrencyPickerOpen(true)}
+                    style={styles.currencySelectBtn}
+                  >
+                    <Text style={styles.currencyBtnFlag}>{budgetEvaluation.currency.flag}</Text>
+                    <Text style={styles.currencyBtnText}>
+                      {budgetEvaluation.currency.symbol} {budgetEvaluation.currency.code}
+                    </Text>
+                    <ChevronDownIcon size={14} color={home.ink} />
+                  </Pressable>
+                </View>
+
+                {/* Akıllı Bütçe & Gramaj Değerlendirme Kartı */}
+                {budgetEvaluation.hasBudget && (
                   <View
                     style={[
-                      styles.budgetTierBadge,
-                      budgetEvaluation.badgeStatus === 'warning' && styles.budgetTierBadgeWarning,
-                      budgetEvaluation.badgeStatus === 'gold' && styles.budgetTierBadgeGold,
+                      styles.budgetEvaluationCard,
+                      budgetEvaluation.badgeStatus === 'warning' && styles.budgetCardWarning,
+                      budgetEvaluation.badgeStatus === 'gold' && styles.budgetCardGold,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.budgetTierBadgeText,
-                        budgetEvaluation.badgeStatus === 'warning' && styles.budgetTierBadgeTextWarning,
-                        budgetEvaluation.badgeStatus === 'gold' && styles.budgetTierBadgeTextGold,
-                      ]}
-                    >
-                      {budgetEvaluation.badgeLabel}
+                    <View style={styles.budgetBadgeRow}>
+                      <View
+                        style={[
+                          styles.budgetTierBadge,
+                          budgetEvaluation.badgeStatus === 'warning' && styles.budgetTierBadgeWarning,
+                          budgetEvaluation.badgeStatus === 'gold' && styles.budgetTierBadgeGold,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.budgetTierBadgeText,
+                            budgetEvaluation.badgeStatus === 'warning' && styles.budgetTierBadgeTextWarning,
+                            budgetEvaluation.badgeStatus === 'gold' && styles.budgetTierBadgeTextGold,
+                          ]}
+                        >
+                          {budgetEvaluation.badgeLabel}
+                        </Text>
+                      </View>
+                      <Text style={styles.budgetPerGuestText}>{tx("~{p0} {symbol} / kişi", { p0: budgetEvaluation.perGuest?.toLocaleString(), symbol: budgetEvaluation.currency.symbol })}</Text>
+                    </View>
+
+                    <Text style={styles.budgetEvaluationMessage}>
+                      {budgetEvaluation.message}
                     </Text>
-                  </View>
-                  <Text style={styles.budgetPerGuestText}>
-                    ~{budgetEvaluation.perGuest?.toLocaleString()} {budgetEvaluation.currency.symbol} / kişi
-                  </Text>
-                </View>
 
-                <Text style={styles.budgetEvaluationMessage}>
-                  {budgetEvaluation.message}
-                </Text>
-
-                <View style={styles.budgetMetricPills}>
-                  <View style={styles.budgetMetricPill}>
-                    <Text style={styles.budgetMetricLabel}>Porsiyon Gramajı</Text>
-                    <Text style={styles.budgetMetricValue}>~{budgetEvaluation.portionWeightGr} g / kişi</Text>
+                    <View style={styles.budgetMetricPills}>
+                      <View style={styles.budgetMetricPill}>
+                        <Text style={styles.budgetMetricLabel}>{tx("Porsiyon Gramajı")}</Text>
+                        <Text style={styles.budgetMetricValue}>{tx("~{portionWeightGr} g / kişi", { portionWeightGr: budgetEvaluation.portionWeightGr })}</Text>
+                      </View>
+                      <View style={styles.budgetMetricPill}>
+                        <Text style={styles.budgetMetricLabel}>{tx("Tahmini Pasta Ağırlığı")}</Text>
+                        <Text style={styles.budgetMetricValue}>{tx("~{totalWeightKg} kg", { totalWeightKg: budgetEvaluation.totalWeightKg })}</Text>
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.budgetMetricPill}>
-                    <Text style={styles.budgetMetricLabel}>Tahmini Pasta Ağırlığı</Text>
-                    <Text style={styles.budgetMetricValue}>~{budgetEvaluation.totalWeightKg} kg</Text>
-                  </View>
-                </View>
+                )}
               </View>
-            )}
-          </View>
+              <NextStepButton label={STEPS[1].label} onPress={() => goToStep(1)} />
+            </>
+          )}
 
-          <TextField
-            title="TEMA"
-            value={theme}
-            onChangeText={setTheme}
-            placeholder="Örn: Rustik"
-            suggestions={['Romantik', 'Kraliyet Lüks', 'Rustik Bohem', 'Vintage Lambeth', 'Minimalist Modern']}
-          />
-          <TextField
-            title="RENK PALETİ"
-            value={palette}
-            onChangeText={setPalette}
-            placeholder="Örn: Mor & Lila"
-            suggestions={[
-              'Fildişi & Altın',
-              'Pudra Pembe & Krem',
-              'Mor & Lavanta',
-              'Zümrüt & Antep Fıstığı',
-              'Bitter Kakao & Karamel',
-            ]}
-          />
+          {step === 1 && (
+            <>
+              <TextField
+                title="TEMA"
+                value={theme}
+                onChangeText={setTheme}
+                placeholder={tx("Örn: Rustik")}
+                suggestions={['Romantik', 'Kraliyet Lüks', 'Rustik Bohem', 'Vintage Lambeth', 'Minimalist Modern']}
+              />
+              <TextField
+                title="RENK PALETİ"
+                value={palette}
+                onChangeText={setPalette}
+                placeholder={tx("Örn: Mor & Lila")}
+                suggestions={[
+                  'Fildişi & Altın',
+                  'Pudra Pembe & Krem',
+                  'Mor & Lavanta',
+                  'Zümrüt & Antep Fıstığı',
+                  'Bitter Kakao & Karamel',
+                ]}
+              />
 
-          <TextField
-            title="KEK HAMURU VE TÜRÜ"
-            value={cakeType}
-            onChangeText={setCakeType}
-            placeholder="Örn: Red Velvet"
-            suggestions={[
-              'Madagaskar Vanilyalı',
-              'Red Velvet',
-              'Belçika Çikolatalı',
-              'Antep Fıstıklı Pandispanya',
-              'Limon & Haşhaşlı',
-            ]}
-          />
-          <TagField
-            title="İÇ MALZEME VE DOLGU KREMASI"
-            placeholder="Örn: Çilek"
-            tags={fillingTags}
-            onAdd={addFillingTag}
-            onRemove={removeFillingTag}
-            suggestions={[
-              'Taze Çilek',
-              'Orman Meyveleri',
-              'Beyaz Çikolata Ganaj',
-              'Fıstık Pralin',
-              'Tuzlu Karamel',
-              'Mascarpone Krema',
-            ]}
-          />
-          <TextField
-            title="DIŞ SIVAMA VE KAPLAMA"
-            value={coating}
-            onChangeText={setCoating}
-            placeholder="Örn: Krem Şanti"
-            suggestions={[
-              'İsviçre Mereng Krema',
-              'Pürüzsüz Fondan',
-              'Beyaz Çikolata Ganaj',
-              'Hafif Krema (Naked)',
-              'Kadife Sprey Çikolata',
-            ]}
-          />
-          <TextField
-            title="YÜZEY DOKUSU"
-            value={texture}
-            onChangeText={setTexture}
-            placeholder="Örn: Dokulu krema"
-            suggestions={[
-              'Pürüzsüz & Düz',
-              'Spatula Dokulu',
-              'Dalgalı Krema',
-              'Çizgili & Taraklı',
-              'Rustik Sıvama',
-            ]}
-          />
+              <TextField
+                title="ŞEKİL VE FORM"
+                value={shape}
+                onChangeText={setShape}
+                placeholder={tx("Örn: Kalp Şeklinde")}
+                suggestions={[
+                  'Yuvarlak Klasik',
+                  'Kalp Şeklinde',
+                  'Modern Kare',
+                  'Altıgen Geometrik',
+                  'Yüksek Silindir (Tall)',
+                  'Asimetrik Katlı',
+                ]}
+              />
+              <OptionSection
+                title={tx("SÜSLEME YOĞUNLUĞU")}
+                options={DECOR_OPTIONS}
+                selected={decor}
+                onSelect={setDecor}
+              />
+              <TagField
+                title="DIŞ SÜSLEME"
+                placeholder={tx("Örn: Şeker çiçek")}
+                tags={decorTags}
+                onAdd={addDecorTag}
+                onRemove={removeDecorTag}
+                suggestions={[
+                  'Şeker Çiçekler',
+                  'Altın Varak Detayı',
+                  'Makaronlar & Bezeler',
+                  'İnci Taneleri',
+                  'Taze Çilek & Meyve',
+                  'Çikolata Figürleri',
+                  'Kurutulmuş Portakal',
+                  'İzomalt Şeker Taç',
+                ]}
+              />
+              <NextStepButton label={STEPS[2].label} onPress={() => goToStep(2)} />
+            </>
+          )}
 
-          <TextField
-            title="ŞEKİL VE FORM"
-            value={shape}
-            onChangeText={setShape}
-            placeholder="Örn: Kalp Şeklinde"
-            suggestions={[
-              'Yuvarlak Klasik',
-              'Kalp Şeklinde',
-              'Modern Kare',
-              'Altıgen Geometrik',
-              'Yüksek Silindir (Tall)',
-              'Asimetrik Katlı',
-            ]}
-          />
-          <OptionSection
-            title="SÜSLEME YOĞUNLUĞU"
-            options={DECOR_OPTIONS}
-            selected={decor}
-            onSelect={setDecor}
-          />
-          <TagField
-            title="DIŞ SÜSLEME"
-            placeholder="Örn: Şeker çiçek"
-            tags={decorTags}
-            onAdd={addDecorTag}
-            onRemove={removeDecorTag}
-            suggestions={[
-              'Şeker Çiçekler',
-              'Altın Varak Detayı',
-              'Makaronlar & Bezeler',
-              'İnci Taneleri',
-              'Taze Çilek & Meyve',
-              'Çikolata Figürleri',
-              'Kurutulmuş Portakal',
-              'İzomalt Şeker Taç',
-            ]}
-          />
-          <TextField
-            title="ÜZERİNDEKİ YAZI"
-            value={writing}
-            onChangeText={setWriting}
-            placeholder="Örn: Mutlu Yıllar"
-            suggestions={[
-              'İyi ki Doğdun',
-              'Mutlu Yıllar',
-              'Just Married',
-              'Seni Seviyorum',
-              'Tebrikler',
-              '1 Yaşında',
-              'Hoş Geldin Bebek',
-              'Birlikte Nice Yıllara',
-            ]}
-          />
+          {step === 2 && (
+            <>
+              <TextField
+                title="KEK HAMURU VE TÜRÜ"
+                value={cakeType}
+                onChangeText={setCakeType}
+                placeholder={tx("Örn: Red Velvet")}
+                suggestions={[
+                  'Madagaskar Vanilyalı',
+                  'Red Velvet',
+                  'Belçika Çikolatalı',
+                  'Antep Fıstıklı Pandispanya',
+                  'Limon & Haşhaşlı',
+                ]}
+              />
+              <TagField
+                title="İÇ MALZEME VE DOLGU KREMASI"
+                placeholder={tx("Örn: Çilek")}
+                tags={fillingTags}
+                onAdd={addFillingTag}
+                onRemove={removeFillingTag}
+                suggestions={[
+                  'Taze Çilek',
+                  'Orman Meyveleri',
+                  'Beyaz Çikolata Ganaj',
+                  'Fıstık Pralin',
+                  'Tuzlu Karamel',
+                  'Mascarpone Krema',
+                ]}
+              />
+              <TextField
+                title="DIŞ SIVAMA VE KAPLAMA"
+                value={coating}
+                onChangeText={setCoating}
+                placeholder={tx("Örn: Krem Şanti")}
+                suggestions={[
+                  'İsviçre Mereng Krema',
+                  'Pürüzsüz Fondan',
+                  'Beyaz Çikolata Ganaj',
+                  'Hafif Krema (Naked)',
+                  'Kadife Sprey Çikolata',
+                ]}
+              />
+              <TextField
+                title="YÜZEY DOKUSU"
+                value={texture}
+                onChangeText={setTexture}
+                placeholder={tx("Örn: Dokulu krema")}
+                suggestions={[
+                  'Pürüzsüz & Düz',
+                  'Spatula Dokulu',
+                  'Dalgalı Krema',
+                  'Çizgili & Taraklı',
+                  'Rustik Sıvama',
+                ]}
+              />
+              <TagField
+                title="DİYET VE ALERJEN BİLDİRİMLERİ"
+                placeholder={tx("Örn: Glutensiz")}
+                tags={dietTags}
+                onAdd={addDietTag}
+                onRemove={removeDietTag}
+                suggestions={[
+                  'Glutensiz',
+                  'Vegan',
+                  'Laktozsuz',
+                  'Rafine Şekersiz',
+                  'Fındık & Fıstıksız',
+                  'Yumurtasız',
+                  'Düşük Kalorili',
+                ]}
+              />
 
-          <TagField
-            title="DİYET VE ALERJEN BİLDİRİMLERİ"
-            placeholder="Örn: Glutensiz"
-            tags={dietTags}
-            onAdd={addDietTag}
-            onRemove={removeDietTag}
-            suggestions={[
-              'Glutensiz',
-              'Vegan',
-              'Laktozsuz',
-              'Rafine Şekersiz',
-              'Fındık & Fıstıksız',
-              'Yumurtasız',
-              'Düşük Kalorili',
-            ]}
-          />
-
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>EK İSTEKLERİN</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.suggestionRow}
-            >
-              {[
-                'Pırıl pırıl stüdyo ışığı',
-                'Pastel ve naif tonlar',
-                'Zarif masa düzeni',
-                'Ultra lüks detaylar',
-                'Fotoğraf çekimi konsepti',
-              ].map((item) => {
-                const active = notes.includes(item);
-                return (
-                  <Pressable
-                    key={item}
-                    accessibilityRole="button"
-                    onPress={() => {
-                      if (active) {
-                        setNotes((prev) =>
-                          prev
-                            .replace(item, '')
-                            .replace(/,\s*,/g, ',')
-                            .replace(/^,\s*|,\s*$/g, '')
-                            .trim(),
-                        );
-                      } else {
-                        setNotes((prev) => (prev.trim() ? `${prev.trim()}, ${item}` : item));
-                      }
-                    }}
-                    style={[styles.suggestionChip, active && styles.suggestionChipActive]}
-                  >
-                    <Text style={[styles.suggestionText, active && styles.suggestionTextActive]}>
-                      {active ? '✓ ' : '+ '} {item}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <TextInput
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Örneğin: çilekli iç harç, üzerinde isim yazısı..."
-              placeholderTextColor={home.muted}
-              multiline
-              textAlignVertical="top"
-              style={styles.notesInput}
-            />
-          </View>
-
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>{tx("EK İSTEKLERİN")}</Text>
+                <TextInput
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder={tx("Örneğin: çilekli iç harç, üzerinde isim yazısı...")}
+                  placeholderTextColor={home.muted}
+                  multiline
+                  maxLength={MAX_EXTRA_REQUEST_LENGTH}
+                  textAlignVertical="top"
+                  style={styles.notesInput}
+                />
+                <Text style={styles.notesCounter}>
+                  {notes.length}/{MAX_EXTRA_REQUEST_LENGTH}
+                </Text>
+              </View>
+            </>
+          )}
         </ScrollView>
 
         {/* Pinned so the CTA is always one tap away, however long the form gets. */}
@@ -917,7 +1012,7 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
           />
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={`Tasarımı Oluştur, ${cost} Kredi`}
+            accessibilityLabel={tx("Tasarımı Oluştur, {cost} Kredi", { cost })}
             onPress={handleGenerate}
             android_ripple={{ color: 'rgba(243,217,166,0.16)' }}
             scaleTo={0.975}
@@ -931,11 +1026,13 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
               style={styles.generate}
             >
               <ShineSweep initialDelay={1200} interval={3400} />
-              <Text style={styles.generateLabel}>Tasarımı Oluştur</Text>
+              <Text style={styles.generateLabel}>{tx("Tasarımı Oluştur")}</Text>
               <View style={styles.generatePriceRow}>
                 <SparkleIcon size={14} color={home.accentGold} />
-                <Text style={styles.generateOldPrice}>30</Text>
-                <Text style={styles.generatePrice}>20 Kredi</Text>
+                {listPrice > cost && (
+                  <Text style={styles.generateOldPrice}>{listPrice}</Text>
+                )}
+                <Text style={styles.generatePrice}>{tx("{cost} Kredi", { cost })}</Text>
               </View>
             </LinearGradient>
           </PressableScale>
@@ -955,6 +1052,57 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
 const CONTENT_MAX_WIDTH = 460;
 
 const styles = StyleSheet.create({
+  stepWrap: {
+    width: '100%',
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  stepTab: {
+    flex: 1,
+    gap: 6,
+  },
+  stepBar: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: home.cardBorder,
+  },
+  stepBarReached: {
+    backgroundColor: home.gold,
+  },
+  stepLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: home.tabInactive,
+  },
+  stepLabelActive: {
+    color: home.ink,
+  },
+  stepHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: home.body,
+  },
+  nextStep: {
+    marginTop: 8,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: home.cardBorderRich,
+    backgroundColor: '#FFFDF9',
+  },
+  nextStepText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: home.ink,
+  },
   root: {
     flex: 1,
     backgroundColor: home.bg,
@@ -1023,6 +1171,8 @@ const styles = StyleSheet.create({
     color: home.muted,
   },
   suggestionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     paddingBottom: 10,
   },
@@ -1296,6 +1446,12 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: home.ink,
   },
+  notesCounter: {
+    alignSelf: 'flex-end',
+    marginTop: 6,
+    fontSize: 11.5,
+    color: home.muted,
+  },
   generateBar: {
     paddingHorizontal: 20,
     paddingTop: 10,
@@ -1354,5 +1510,47 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: home.accentGold,
   },
-
+  secondCakeActiveBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FAF2DF',
+    borderWidth: 1,
+    borderColor: '#E8DCBF',
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 14,
+    gap: 8,
+  },
+  secondCakeActiveBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  secondCakeActiveBannerText: {
+    fontSize: 12.5,
+    color: home.ink,
+    lineHeight: 17,
+  },
+  bannerStrikeText: {
+    textDecorationLine: 'line-through',
+    color: home.muted,
+  },
+  bannerBoldText: {
+    fontWeight: '700',
+    color: '#8A5A1C',
+  },
+  bannerDiscountBadge: {
+    backgroundColor: '#F7E3B5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  bannerDiscountBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#8A5A1C',
+  },
 });

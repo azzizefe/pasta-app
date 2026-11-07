@@ -20,6 +20,8 @@ import Svg, {
 import { ChefHatIcon, SparkleIcon } from './Icons';
 import { NATIVE } from './motion';
 import { fonts, home } from '../theme/theme';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 interface Props {
   guestCount: string;
@@ -153,6 +155,7 @@ export default function LiveBakeryWorkbench({
   onSelectTiers,
   onSelectGuests,
 }: Props) {
+  useTx();
   const steamAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
 
@@ -242,13 +245,11 @@ export default function LiveBakeryWorkbench({
       <View style={styles.topRow}>
         <View style={styles.ovenBadge}>
           <View style={styles.ovenDot} />
-          <Text style={styles.ovenBadgeText}>TAŞ FIRIN · 175°C · CANLI TEZGÂH</Text>
+          <Text style={styles.ovenBadgeText}>{tx("TAŞ FIRIN · 175°C · CANLI TEZGÂH")}</Text>
         </View>
         <View style={styles.portionPill}>
           <ChefHatIcon size={13} color={home.gold} />
-          <Text style={styles.portionPillText}>
-            {guestCount ? `${guestCount} Kişilik` : '~25 Kişilik'} · {parsedTiers} Kat
-          </Text>
+          <Text style={styles.portionPillText}>{tx("{p0} · {parsedTiers} Kat", { p0: guestCount ? tx("{guestCount} Kişilik", { guestCount }) : tx("~25 Kişilik"), parsedTiers })}</Text>
         </View>
       </View>
 
@@ -422,7 +423,7 @@ export default function LiveBakeryWorkbench({
 
         {/* Sağ Bilgi & Canlı Karışım Özeti */}
         <View style={styles.workbenchMeta}>
-          <Text style={styles.workbenchTitle}>Canlı Hamur & Kat Önizlemesi</Text>
+          <Text style={styles.workbenchTitle}>{tx("Canlı Hamur & Kat Önizlemesi")}</Text>
           <Text style={styles.workbenchDesc} numberOfLines={3}>
             {activeStepSummary}
           </Text>
@@ -439,7 +440,7 @@ export default function LiveBakeryWorkbench({
           <View style={styles.sensoryBadges}>
             <View style={styles.sensoryChip}>
               <Text style={styles.sensoryChipText}>
-                🌾 {cakeType.trim() || 'Taze Pandispanya'}
+                🌾 {cakeType.trim() || tx("Taze Pandispanya")}
               </Text>
             </View>
             {fillingTags.length > 0 && (
@@ -476,7 +477,7 @@ export default function LiveBakeryWorkbench({
                   isSelected && styles.quickTierBtnTextActive,
                 ]}
               >
-                {qt.label}
+                {tx(qt.label)}
               </Text>
             </Pressable>
           );

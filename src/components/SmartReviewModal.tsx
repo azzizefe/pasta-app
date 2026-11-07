@@ -17,6 +17,8 @@ import {
   submitInternalFeedback,
   triggerNativeStoreReview,
 } from '../services/reviewService';
+import { tx } from '../i18n/tx';
+import { useTx } from '../context/LanguageContext';
 
 interface SmartReviewModalProps {
   visible: boolean;
@@ -29,6 +31,7 @@ export default function SmartReviewModal({
   cakeTitle,
   onClose,
 }: SmartReviewModalProps) {
+  useTx();
   const [step, setStep] = useState<'filter' | 'feedback' | 'success'>('filter');
   const [feedbackText, setFeedbackText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -96,7 +99,7 @@ export default function SmartReviewModal({
               hitSlop={12}
               style={styles.closeBtn}
               onPress={handleDismiss}
-              accessibilityLabel="Kapat"
+              accessibilityLabel={tx("Kapat")}
             >
               <CloseIcon size={18} color={home.muted} />
             </Pressable>
@@ -108,10 +111,8 @@ export default function SmartReviewModal({
                   <SparkleIcon size={28} color="#C5A880" />
                 </View>
 
-                <Text style={styles.title}>Tasarımınızı Beğendiniz mi?</Text>
-                <Text style={styles.subtitle}>
-                  Lumière Sucrée atölyesinden çıkan bu tasarım hayalinizdeki zarafeti yansıtıyor mu?
-                </Text>
+                <Text style={styles.title}>{tx("Tasarımınızı Beğendiniz mi?")}</Text>
+                <Text style={styles.subtitle}>{tx("Lumière Sucrée atölyesinden çıkan bu tasarım hayalinizdeki zarafeti yansıtıyor mu?")}</Text>
 
                 <View style={styles.buttonGroup}>
                   {/* Pozitif Yanıt (5 Yıldız StoreKit Tetikleyici) */}
@@ -126,7 +127,7 @@ export default function SmartReviewModal({
                       style={styles.primaryGradient}
                     >
                       <SparkleIcon size={16} color="#F6D9A8" />
-                      <Text style={styles.primaryBtnText}>Evet, Çok Beğendim ✨</Text>
+                      <Text style={styles.primaryBtnText}>{tx("Evet, Çok Beğendim ✨")}</Text>
                     </LinearGradient>
                   </Pressable>
 
@@ -135,9 +136,7 @@ export default function SmartReviewModal({
                     style={styles.secondaryButton}
                     onPress={handleShowFeedback}
                   >
-                    <Text style={styles.secondaryBtnText}>
-                      Geliştirilebilir / Düşüncem Var
-                    </Text>
+                    <Text style={styles.secondaryBtnText}>{tx("Geliştirilebilir / Düşüncem Var")}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -150,16 +149,14 @@ export default function SmartReviewModal({
                   <ChefHatIcon size={26} color={home.gold} />
                 </View>
 
-                <Text style={styles.title}>Şeflerimize İletin</Text>
-                <Text style={styles.subtitle}>
-                  Pasta tasarımında hangi detayları geliştirmemizi istersiniz? Fikirleriniz sonraki koleksiyonlarımıza ilham verir.
-                </Text>
+                <Text style={styles.title}>{tx("Şeflerimize İletin")}</Text>
+                <Text style={styles.subtitle}>{tx("Pasta tasarımında hangi detayları geliştirmemizi istersiniz? Fikirleriniz sonraki koleksiyonlarımıza ilham verir.")}</Text>
 
                 <TextInput
                   style={styles.feedbackInput}
                   multiline
                   numberOfLines={4}
-                  placeholder="Örn: Renk paleti biraz daha pastel olabilirdi, çiçek süslemeleri..."
+                  placeholder={tx("Örn: Renk paleti biraz daha pastel olabilirdi, çiçek süslemeleri...")}
                   placeholderTextColor={home.muted}
                   value={feedbackText}
                   onChangeText={setFeedbackText}
@@ -177,7 +174,7 @@ export default function SmartReviewModal({
                       style={styles.primaryGradient}
                     >
                       <Text style={styles.primaryBtnText}>
-                        {isSubmitting ? 'İletiliyor...' : 'Geri Bildirimi Gönder'}
+                        {isSubmitting ? tx("İletiliyor...") : tx("Geri Bildirimi Gönder")}
                       </Text>
                     </LinearGradient>
                   </Pressable>
@@ -186,7 +183,7 @@ export default function SmartReviewModal({
                     style={styles.secondaryButton}
                     onPress={() => setStep('filter')}
                   >
-                    <Text style={styles.secondaryBtnText}>Geri Dön</Text>
+                    <Text style={styles.secondaryBtnText}>{tx("Geri Dön")}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -199,10 +196,8 @@ export default function SmartReviewModal({
                   <CheckIcon size={28} color="#2E7D32" strokeWidth={2.5} />
                 </View>
 
-                <Text style={styles.title}>Teşekkür Ederiz</Text>
-                <Text style={styles.subtitle}>
-                  Değerli notunuz atölye şeflerimize iletildi. Tasarımlarımızı mükemmelleştirmeye devam edeceğiz.
-                </Text>
+                <Text style={styles.title}>{tx("Teşekkür Ederiz")}</Text>
+                <Text style={styles.subtitle}>{tx("Değerli notunuz atölye şeflerimize iletildi. Tasarımlarımızı mükemmelleştirmeye devam edeceğiz.")}</Text>
               </View>
             )}
           </LinearGradient>
