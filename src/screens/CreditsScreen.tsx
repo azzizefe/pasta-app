@@ -192,7 +192,7 @@ export default function CreditsScreen({ onClose }: Props) {
         showAlert(tx("Satın Alma Başarısız"), result.error);
       }
     } catch (err: any) {
-      showAlert(tx("Hata"), err?.message || tx("Ödeme tamamlanamadı."));
+      showAlert(tx("Hata"), tx("Ödeme tamamlanamadı."));
     } finally {
       purchaseInFlightRef.current = false;
       setPurchasingPkgId(null);

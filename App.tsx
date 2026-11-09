@@ -21,7 +21,7 @@ import {
 import { trackAppLaunchAndRetention } from './src/services/analyticsService';
 import { deleteFullUserAccount, wipeLocalAccountData } from './src/services/accountService';
 import { setIAPUser } from './src/services/iapService';
-import CakeBuilderScreen, { type CakeKind } from './src/screens/CakeBuilderScreen';
+import CakeBuilderScreen, { type CakeKind, type OpenBuilderOptions } from './src/screens/CakeBuilderScreen';
 import { type CakeDetails } from './src/types/savedCake';
 import CreditsScreen from './src/screens/CreditsScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -40,7 +40,8 @@ type MainAppProps = {
   onDeleteAccount: () => void;
   builderKind: CakeKind | null;
   builderDetails: CakeDetails | null;
-  onOpenBuilder: (kind: CakeKind, details?: CakeDetails) => void;
+  builderAutoGenerate: boolean;
+  onOpenBuilder: (kind: CakeKind, details?: CakeDetails, options?: OpenBuilderOptions) => void;
   onCloseBuilder: () => void;
 };
 
@@ -53,6 +54,7 @@ function MainApp({
   onDeleteAccount,
   builderKind,
   builderDetails,
+  builderAutoGenerate,
   onOpenBuilder,
   onCloseBuilder,
 }: MainAppProps) {
@@ -77,6 +79,7 @@ function MainApp({
               <CakeBuilderScreen
                 kind={builderKind}
                 initialDetails={builderDetails ?? undefined}
+                autoGenerate={builderAutoGenerate}
                 onClose={onCloseBuilder}
               />
             </View>
@@ -103,6 +106,7 @@ export default function App() {
   const [authProvider, setAuthProvider] = useState<Provider | null>(null);
   const [builderKind, setBuilderKind] = useState<CakeKind | null>(null);
   const [builderDetails, setBuilderDetails] = useState<CakeDetails | null>(null);
+  const [builderAutoGenerate, setBuilderAutoGenerate] = useState(false);
   const [fontsLoaded] = useFonts({
     PlayfairDisplay_500Medium,
     PlayfairDisplay_700Bold,
@@ -189,10 +193,14 @@ export default function App() {
     handleSignOut();
   }, [currentUser, handleSignOut]);
 
-  const handleOpenBuilder = useCallback((kind: CakeKind, details?: CakeDetails) => {
-    setBuilderDetails(details ?? null);
-    setBuilderKind(kind);
-  }, []);
+  const handleOpenBuilder = useCallback(
+    (kind: CakeKind, details?: CakeDetails, options?: OpenBuilderOptions) => {
+      setBuilderDetails(details ?? null);
+      setBuilderAutoGenerate(Boolean(options?.autoGenerate));
+      setBuilderKind(kind);
+    },
+    [],
+  );
 
   const handleCloseBuilder = useCallback(() => {
     setBuilderKind(null);
@@ -220,6 +228,7 @@ export default function App() {
                   onDeleteAccount={handleDeleteAccount}
                   builderKind={builderKind}
                   builderDetails={builderDetails}
+                  builderAutoGenerate={builderAutoGenerate}
                   onOpenBuilder={handleOpenBuilder}
                   onCloseBuilder={handleCloseBuilder}
                 />

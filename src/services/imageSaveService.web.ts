@@ -56,7 +56,7 @@ export async function saveCakeImageToDevice(
     console.error('Web indirme hatası:', error);
     return {
       success: false,
-      message: error?.message || tx("Görsel indirilemedi."),
+      message: tx("Görsel indirilemedi."),
     };
   }
 }

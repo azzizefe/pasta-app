@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, openBuilder, signIn, test, WELCOME_CREDITS } from './helpers';
+import { expect, openBuilder, openCreditsStore, signIn, test } from './helpers';
 
 async function scan(page: import('@playwright/test').Page) {
   const result = await new AxeBuilder({ page }).analyze();
@@ -30,8 +30,7 @@ test.describe('Erişilebilirlik (axe)', () => {
 
   test('Kredilerim ekranı', async ({ page }) => {
     await signIn(page);
-    await page.getByRole('button', { name: `Kredi bakiyesi ${WELCOME_CREDITS}` }).click();
-    await expect(page.getByText('Kredilerim')).toBeVisible();
+    await openCreditsStore(page);
     expect(await scan(page)).toEqual([]);
   });
 });

@@ -89,11 +89,9 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
     const accessToken = params['access_token'];
 
     if (!accessToken) {
-      // Hata parametresi var mı kontrol et
-      const errorDescription = params['error_description'] || params['error'];
       return {
         success: false,
-        error: errorDescription || tx("Google erişim belirteci (access_token) alınamadı."),
+        error: tx("Google ile giriş yapılırken beklenmedik bir hata oluştu."),
       };
     }
 
@@ -134,7 +132,7 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
     console.error('[GoogleAuth] Hata:', err);
     return {
       success: false,
-      error: err?.message || tx("Google ile giriş yapılırken beklenmedik bir hata oluştu."),
+      error: tx("Google ile giriş yapılırken beklenmedik bir hata oluştu."),
     };
   }
 }

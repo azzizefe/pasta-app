@@ -12,7 +12,16 @@ const TINY_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 export type GeminiMode = 'ok' | 'error' | 'slow' | 'offline';
-export type GeminiMock = { calls: number; mode: GeminiMode };
+export type GeminiMock = {
+  calls: number;
+  mode: GeminiMode;
+  /** Prompt enhancer requests, counted apart from image requests. */
+  enhance: { calls: number; mode: 'ok' | 'error'; bodies: any[] };
+};
+
+/** What the fake prompt enhancer returns. */
+export const ENHANCED_PROMPT =
+  'Lavanta tonlarında ipeksi krema kaplı, altın varak detaylı ve taze çiçeklerle süslenmiş zarif bir pasta.';
 
 /** The user every test signs in as; the fake Supabase returns this profile. */
 export const TEST_USER = {
@@ -48,7 +57,7 @@ export const test = base.extend<{ gemini: GeminiMock; issues: string[]; supabase
     async ({ page }, use) => {
       const issues: string[] = [];
       // The browser logs the failures we deliberately inject into the AI mocks.
-      const isAiMock = (url: string) => /generativelanguage|\/api\/generate-/.test(url);
+      const isAiMock = (url: string) => /generativelanguage|\/api\/(generate|enhance)-/.test(url);
       page.on('console', (msg) => {
         if (isAiMock(msg.location().url) || isAiMock(msg.text())) return;
         if (msg.type() === 'error') issues.push(`console: ${msg.text()}`);
@@ -66,7 +75,7 @@ export const test = base.extend<{ gemini: GeminiMock; issues: string[]; supabase
   ],
   gemini: [
     async ({ page, context }, use) => {
-      const mock: GeminiMock = { calls: 0, mode: 'ok' };
+      const mock: GeminiMock = { calls: 0, mode: 'ok', enhance: { calls: 0, mode: 'ok', bodies: [] } };
       // Most tests are about generation, not the one-time AI consent sheet, so consent is pre-granted.
       await page.addInitScript((key) => {
         if (window.localStorage.getItem(key) === null) {
@@ -100,6 +109,16 @@ export const test = base.extend<{ gemini: GeminiMock; issues: string[]; supabase
       await context.route('**/api/generate-recipe', (route) =>
         route.fulfill({ json: { recipe: 'Malzemeler\n- 500 g un\n\nYapılışı\n1. Fırını ısıt.' } }),
       );
+      // Prompt enhancer (Gemini 3.1 Flash Lite through our backend).
+      await context.route('**/api/enhance-prompt', async (route) => {
+        mock.enhance.calls += 1;
+        mock.enhance.bodies.push(route.request().postDataJSON());
+        await new Promise((r) => setTimeout(r, 400));
+        if (mock.enhance.mode === 'error') {
+          return route.fulfill({ status: 500, json: { error: 'Sahte sunucu hatası' } });
+        }
+        return route.fulfill({ json: { success: true, prompt: ENHANCED_PROMPT } });
+      });
       await use(mock);
     },
     { auto: true },
@@ -118,6 +137,31 @@ export async function seedCredits(page: Page, credits: number) {
   );
 }
 
+export const SAVED_CAKES_KEY = '@lumiere_saved_cakes_v1';
+
+/** Seeds saved designs once: `titles[0]` is the oldest, the last one the newest. */
+export async function seedSavedCakes(page: Page, titles: string[]) {
+  const now = Date.parse('2026-11-01T12:00:00Z');
+  const cakes = titles
+    .map((title, i) => ({
+      id: `seed_${i}`,
+      createdAt: now + i * 60_000,
+      title,
+      kind: 'custom',
+      imageUri: `data:image/png;base64,${TINY_PNG}`,
+      prompt: title,
+      details: { tier: 2 },
+      isFavorite: false,
+    }))
+    .reverse();
+  await page.addInitScript(
+    ([key, value]) => {
+      if (window.localStorage.getItem(key) === null) window.localStorage.setItem(key, value);
+    },
+    [SAVED_CAKES_KEY, JSON.stringify(cakes)],
+  );
+}
+
 /** Signs in, or just lands on home when a saved session already exists (e.g. a second tab). */
 export async function signIn(page: Page) {
   await page.goto('/');
@@ -132,10 +176,37 @@ export async function readCredits(page: Page) {
   return Number(await page.evaluate((key) => window.localStorage.getItem(key), CREDITS_KEY));
 }
 
-/** Opens the builder from the home carousel's call-to-action (the wedding cake is shown first). */
-export async function openBuilder(page: Page, card = 'Düğün Pastası Couture Tasarla') {
-  await page.getByRole('button', { name: card }).click();
+/** Picks the cake type on the home prompt bar. */
+export async function chooseCakeType(page: Page, type = 'Düğün Pastası') {
+  await page.getByRole('button', { name: /^Pasta türü:/ }).click();
+  await page.getByRole('button', { name: type }).click();
+  await expect(page.getByText('Hangi pastayı tasarlayalım?')).toBeHidden();
+}
+
+/** Opens the full builder form from the home prompt bar. */
+export async function openBuilder(page: Page, type = 'Düğün Pastası') {
+  await chooseCakeType(page, type);
+  await page.getByRole('button', { name: 'Tüm seçeneklerle tasarla' }).click();
   await expect(page.getByText('KAÇ KİŞİLİK?')).toBeVisible();
+}
+
+/** The home prompt bar's generate button. */
+export function composerGenerateButton(page: Page) {
+  return page.getByRole('button', { name: /^Pastayı Oluştur, \d+ Kredi$/ });
+}
+
+/** Opens the Kredilerim store from the Hesabım tab. */
+export async function openCreditsStore(page: Page) {
+  await page.getByRole('tab', { name: 'Hesabım' }).click();
+  await page.getByRole('button', { name: 'Kredi Yükle' }).click();
+  await expect(page.getByText('Kredilerim')).toBeVisible();
+}
+
+/** Checks the balance shown on the Hesabım tab's credit card. */
+export async function expectBalance(page: Page, credits: number) {
+  await page.getByRole('tab', { name: 'Hesabım' }).click();
+  const card = page.getByRole('button', { name: 'Kredi detayları ve satın alma' });
+  await expect(card.getByText(String(credits), { exact: true })).toBeVisible();
 }
 
 /** Fills one field so the form counts as a valid selection. */

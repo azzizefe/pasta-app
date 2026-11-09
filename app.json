@@ -19,7 +19,25 @@
         "NSPhotoLibraryUsageDescription": "Lumière Sucrée, pasta tasarımlarınıza ilham vermesi için davetiye veya konsept fotoğraflarını seçmenize olanak tanır.",
         "NSPhotoLibraryAddUsageDescription": "Oluşturduğunuz şaheser pasta tasarımlarını fotoğraf galerinize yüksek çözünürlükte kaydetmek için izin gereklidir.",
         "NSCameraUsageDescription": "Özel gününüz için ilham aldığınız detayların anlık fotoğrafını çekerek pasta tasarımına dönüştürmenizi sağlar.",
-        "CFBundleAllowMixedLocalizations": true
+        "CFBundleAllowMixedLocalizations": true,
+        "CFBundleLocalizations": [
+          "tr",
+          "en",
+          "fr",
+          "ar",
+          "de",
+          "es",
+          "it",
+          "pt",
+          "ru",
+          "uk",
+          "pl",
+          "nl",
+          "ja",
+          "ko",
+          "zh-Hans",
+          "id"
+        ]
       }
     },
     "android": {
@@ -30,7 +48,13 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -103,6 +127,12 @@
         }
       ],
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "489a526d-63e4-4b6a-aad5-d2d6619bf4c6"
+      }
+    },
+    "owner": "azzizefe"
   }
 }

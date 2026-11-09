@@ -1,5 +1,6 @@
 import { ENV, hasAIBackend, isGeminiConfigured } from '../config/env';
 import { getTxLanguage, tx } from '../i18n/tx';
+import { messageForHttpError } from './errorMessages';
 import { AI_CONSENT_REQUIRED, hasAiConsent } from './aiConsentService';
 import { addBreadcrumb, captureException, captureMessage } from './monitoringService';
 import type { CakeDetails } from '../types/savedCake';
@@ -150,7 +151,7 @@ async function generateRecipeViaBackend(
       const err = await response.json().catch(() => ({}));
       return {
         success: false,
-        error: err?.message || err?.error || tx("Sunucu Hatası ({status})", { status: response.status }),
+        error: messageForHttpError(response.status, err),
       };
     }
 
@@ -166,7 +167,7 @@ async function generateRecipeViaBackend(
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || tx("Tarif sunucusuna bağlanılamadı."),
+      error: tx("Tarif sunucusuna bağlanılamadı."),
     };
   }
 }
@@ -216,7 +217,7 @@ async function generateRecipeDirectGemini(
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        lastError = err?.error?.message || tx("API Hatası: {status} ({model})", { status: response.status, model });
+        lastError = messageForHttpError(response.status);
         // 404 (model bulunamadı) ise sonraki modele geç
         if (response.status === 404) {
           continue;
@@ -242,7 +243,7 @@ async function generateRecipeDirectGemini(
         recipe: output.value,
       };
     } catch (err: any) {
-      lastError = err?.message || tx("Ağ bağlantı hatası oluştu.");
+      lastError = tx("Ağ bağlantı hatası oluştu.");
     }
   }
 
@@ -332,12 +333,11 @@ export async function generateCakeRecipe(
   } catch (err: any) {
     const durationMs = Date.now() - startTime;
     captureException(err, {
-      promptSnippet: prompt.slice(0, 100),
       durationMs,
     });
     return {
       success: false,
-      error: err?.message || tx("Tarif oluşturulurken bir hata meydana geldi."),
+      error: tx("Tarif oluşturulurken bir hata meydana geldi."),
     };
   }
 }

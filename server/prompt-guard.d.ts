@@ -62,4 +62,11 @@ export function buildRecipeRequest(
   details?: GuardedCakeDetails,
   language?: string,
 ): { systemInstruction: string; userText: string };
+export const ENHANCED_PROMPT_MAX_LENGTH: number;
+export function buildPromptEnhanceRequest(
+  text: string,
+  context?: { kind?: string },
+  language?: string,
+): { systemInstruction: string; userText: string };
+export function finishEnhancedPrompt(text: unknown): string;
 export function guardModelOutput(text: unknown): GuardTextResult;

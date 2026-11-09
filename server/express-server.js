@@ -41,6 +41,8 @@ const {
   guardReferenceImage,
   buildImagePrompt,
   buildRecipeRequest,
+  buildPromptEnhanceRequest,
+  finishEnhancedPrompt,
   guardModelOutput,
 } = require('./prompt-guard');
 const { creditStorePurchase } = require('./store-credits');
@@ -318,6 +320,57 @@ app.post('/api/generate-recipe', rateLimitMiddleware, promptSecurityMiddleware, 
       'X-Zero-Cloud-Storage': 'true',
     });
     return res.json({ success: true, recipe: outputCheck.value });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Sunucu hatası oluştu.' });
+  }
+});
+
+/**
+ * İSTEM İYİLEŞTİRME (Gemini 3.1 Flash Lite)
+ * POST /api/enhance-prompt
+ * Body: { prompt: string, kind?: "wedding" | "engagement" | "birthday" | "custom", language?: string }
+ * Kullanıcının kısa pasta fikrini görsel modeli için daha zengin bir tarife çevirir.
+ */
+app.post('/api/enhance-prompt', rateLimitMiddleware, promptSecurityMiddleware, async (req, res) => {
+  if (!GEMINI_API_KEY) {
+    return res.status(500).json({ error: 'Sunucuda GEMINI_API_KEY ortam değişkeni ayarlanmamış.' });
+  }
+
+  const model = configuredModel(RECIPE_MODEL_SETTING, DEFAULT_RECIPE_MODEL);
+  const { systemInstruction, userText } = buildPromptEnhanceRequest(
+    req.body.prompt,
+    { kind: req.body.kind },
+    req.body.language,
+  );
+
+  try {
+    const googleUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+    const response = await fetch(googleUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ role: 'user', parts: [{ text: userText }] }],
+        generationConfig: { maxOutputTokens: 400, temperature: 0.8 },
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      return res.status(response.status).json({
+        error: err?.error?.message || `Google API Hatası (${response.status})`,
+      });
+    }
+
+    const data = await response.json();
+    const outputCheck = guardModelOutput(data?.candidates?.[0]?.content?.parts?.[0]?.text);
+    if (!outputCheck.ok) {
+      console.warn(`[PromptGuard] Model çıktısı reddedildi: ${outputCheck.code}`);
+      return res.status(502).json({ error: outputCheck.message, code: outputCheck.code });
+    }
+
+    res.set({ 'Cache-Control': 'no-store, no-cache, must-revalidate, private', 'X-Zero-Cloud-Storage': 'true' });
+    return res.json({ success: true, prompt: finishEnhancedPrompt(outputCheck.value) });
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Sunucu hatası oluştu.' });
   }

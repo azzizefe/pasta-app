@@ -103,7 +103,7 @@ export default function LoginScreen({ onSignIn }: Props) {
         setAuthError(result.error);
       }
     } catch (err: any) {
-      setAuthError(err?.message || tx("Apple ile giriş sırasında bir hata oluştu."));
+      setAuthError(tx("Apple ile giriş sırasında bir hata oluştu."));
     } finally {
       setAuthenticatingProvider(null);
     }
@@ -121,7 +121,7 @@ export default function LoginScreen({ onSignIn }: Props) {
         setAuthError(result.error);
       }
     } catch (err: any) {
-      setAuthError(err?.message || tx("Google ile giriş sırasında bir hata oluştu."));
+      setAuthError(tx("Google ile giriş sırasında bir hata oluştu."));
     } finally {
       setAuthenticatingProvider(null);
     }

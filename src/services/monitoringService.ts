@@ -68,15 +68,12 @@ export function captureMessage(message: string, level: Sentry.SeverityLevel = 'i
 
 /**
  * Giriş yapan kullanıcının kimliğini oturuma bağlar.
+ * Sadece hesap kimliği gönderilir; e-posta ve ad Sentry'ye gitmez.
  */
-export function setMonitoringUser(user: { id: string; email?: string | null; name?: string | null }) {
+export function setMonitoringUser(user: { id: string }) {
   if (isSentryInitialized) {
     try {
-      Sentry.setUser({
-        id: user.id,
-        email: user.email || undefined,
-        username: user.name || undefined,
-      });
+      Sentry.setUser({ id: user.id });
     } catch (e) {
       console.warn('[Monitoring] Kullanıcı bilgisi atanamadı:', e);
     }

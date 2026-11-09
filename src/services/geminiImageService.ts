@@ -64,15 +64,9 @@ async function generateViaBackendProxy(
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      if (response.status === 429) {
-        return {
-          success: false,
-          error: err?.message || tx("Çok fazla pasta tasarlama isteği gönderildi. Lütfen 1 dakika sonra tekrar deneyiniz."),
-        };
-      }
-      return {
+            return {
         success: false,
-        error: err?.error || err?.message || tx("Sunucu Hatası ({status})", { status: response.status }),
+        error: messageForHttpError(response.status, err),
       };
     }
 
@@ -91,7 +85,7 @@ async function generateViaBackendProxy(
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || tx("Güvenli AI sunucusuna bağlanılamadı."),
+      error: tx("Güvenli AI sunucusuna bağlanılamadı."),
     };
   }
 }
@@ -139,7 +133,7 @@ async function generateDirectGemini(
         const err = await response.json().catch(() => ({}));
         return {
           success: false,
-          error: err?.error?.message || tx("API Hatası: {status}", { status: response.status }),
+          error: messageForHttpError(response.status),
         };
       }
 
@@ -193,7 +187,7 @@ async function generateDirectGemini(
       const err = await response.json().catch(() => ({}));
       return {
         success: false,
-        error: err?.error?.message || tx("Gemini API Hatası ({status}: {statusText})", { status: response.status, statusText: response.statusText }),
+        error: messageForHttpError(response.status),
       };
     }
 
@@ -221,7 +215,7 @@ async function generateDirectGemini(
   } catch (err: any) {
     return {
       success: false,
-      error: err?.message || tx("Ağ bağlantı hatası oluştu."),
+      error: tx("Ağ bağlantı hatası oluştu."),
     };
   }
 }
@@ -239,6 +233,7 @@ const SLO_LATENCY_ALERT_MS = 15000; // 15 saniyeyi aşan üretimlerde SLO uyarı
  */
 import { validatePromptSafety } from '../utils/security';
 import { tx } from '../i18n/tx';
+import { messageForErrorCode, messageForHttpError } from './errorMessages';
 
 export async function generateCakeImage(
   prompt: string,
@@ -267,7 +262,7 @@ export async function generateCakeImage(
   // İlham fotoğrafı gerçek bir görsel mi? (sahte dosya / aşırı büyük dosya engeli)
   const imageCheck = guardReferenceImage(referenceImageBase64);
   if (!imageCheck.ok) {
-    return { success: false, error: imageCheck.message };
+    return { success: false, error: messageForErrorCode(imageCheck.code) || tx("İlham fotoğrafı okunamadı. Lütfen JPEG, PNG veya WEBP bir fotoğraf seç.") };
   }
   referenceImageBase64 = imageCheck.data ?? undefined;
 
@@ -319,12 +314,11 @@ export async function generateCakeImage(
   } catch (err) {
     const durationMs = Date.now() - startTime;
     captureException(err, {
-      promptSnippet: prompt.slice(0, 100),
       durationMs,
     });
     return {
       success: false,
-      error: (err as any)?.message || tx("Yapay zeka üretim hatası oluştu."),
+      error: tx("Yapay zeka üretim hatası oluştu."),
     };
   }
 }

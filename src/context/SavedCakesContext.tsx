@@ -88,6 +88,7 @@ export function SavedCakesProvider({ children }: { children: React.ReactNode }) 
         imageUri: persistentImageUri,
         createdAt: Date.now(),
         isFavorite: cakeData.isFavorite ?? false,
+        likedAt: cakeData.isFavorite ? cakeData.likedAt ?? Date.now() : undefined,
       };
 
       const updated = [newCake, ...savedCakes];
@@ -132,7 +133,9 @@ export function SavedCakesProvider({ children }: { children: React.ReactNode }) 
   const toggleFavorite = useCallback(
     async (id: string) => {
       const updated = savedCakes.map((c) =>
-        c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
+        c.id === id
+          ? { ...c, isFavorite: !c.isFavorite, likedAt: c.isFavorite ? undefined : Date.now() }
+          : c
       );
       await persistCakes(updated);
     },
@@ -187,6 +190,15 @@ export function SavedCakesProvider({ children }: { children: React.ReactNode }) 
       {children}
     </SavedCakesContext.Provider>
   );
+}
+
+/** Liked cakes first (most recently liked on top), then the rest, newest first. */
+export function sortLikedFirst(cakes: SavedCake[]): SavedCake[] {
+  return [...cakes].sort((a, b) => {
+    if (!!a.isFavorite !== !!b.isFavorite) return a.isFavorite ? -1 : 1;
+    if (a.isFavorite) return (b.likedAt ?? b.createdAt) - (a.likedAt ?? a.createdAt);
+    return b.createdAt - a.createdAt;
+  });
 }
 
 export function useSavedCakes() {

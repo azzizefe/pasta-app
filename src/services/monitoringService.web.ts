@@ -5,7 +5,7 @@
  * aynı izleme API'sini (Sentry benzeri) kesintisiz sağlar.
  */
 
-let webUser: { id: string; email?: string | null; name?: string | null } | null = null;
+let webUser: { id: string } | null = null;
 
 export function initMonitoring() {
   const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
@@ -30,11 +30,12 @@ export function captureMessage(message: string, level: string = 'info') {
   }
 }
 
-export function setMonitoringUser(user: { id: string; email?: string | null; name?: string | null }) {
-  webUser = user;
+// Sadece hesap kimliği gönderilir; e-posta ve ad Sentry'ye gitmez.
+export function setMonitoringUser(user: { id: string }) {
+  webUser = { id: user.id };
   console.log('[Web Monitoring] Kullanıcı oturumu bağlandı:', user.id);
   if (typeof window !== 'undefined' && (window as any).Sentry) {
-    (window as any).Sentry.setUser(user);
+    (window as any).Sentry.setUser({ id: user.id });
   }
 }
 

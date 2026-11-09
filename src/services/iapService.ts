@@ -7,6 +7,7 @@ import {
   RestoreResult,
 } from '../types/iap';
 import { tx } from '../i18n/tx';
+import { messageForStoreError } from './errorMessages';
 
 /**
  * React Native Purchases (RevenueCat SDK).
@@ -161,7 +162,7 @@ export async function purchaseIAPPackage(pkg: IAPPackage): Promise<PurchaseResul
       }
       return {
         success: false,
-        error: error?.message || tx("Apple/Google mağaza ödemesi tamamlanamadı."),
+        error: messageForStoreError(error, tx("Apple/Google mağaza ödemesi tamamlanamadı.")),
       };
     }
   }
@@ -201,7 +202,7 @@ export async function restoreIAPPurchases(): Promise<RestoreResult> {
       return {
         success: false,
         restoredCount: 0,
-        error: err?.message || tx("Geri yükleme işlemi başarısız oldu."),
+        error: messageForStoreError(err, tx("Geri yükleme işlemi başarısız oldu.")),
       };
     }
   }

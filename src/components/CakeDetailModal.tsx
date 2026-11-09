@@ -94,7 +94,7 @@ export default function CakeDetailModal({
       }
     } catch (err: any) {
       setIsRecipeLoading(false);
-      setRecipeError(err?.message || tx("Tarif hazırlanırken bir hata oluştu."));
+      setRecipeError(tx("Tarif hazırlanırken bir hata oluştu."));
     }
   }, [cake, updateCake, ensureAiConsent]);
 
@@ -119,7 +119,7 @@ export default function CakeDetailModal({
       const res = await saveCakeImageToDevice(cake.imageUri, cake.title);
       showAlert(res.success ? tx("Başarılı") : tx("Bilgi"), res.message);
     } catch (e: any) {
-      showAlert(tx("Hata"), tx("Görsel kaydedilemedi: ") + (e?.message || 'Bilinmeyen sorun'));
+      showAlert(tx("Hata"), tx("Görsel galeriye kaydedilemedi. Lütfen tekrar deneyin."));
     } finally {
       setIsDownloading(false);
     }

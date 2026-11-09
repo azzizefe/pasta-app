@@ -61,7 +61,7 @@ export default function ReferenceImagePicker({
         }
       }
     } catch (err: any) {
-      showAlert(tx("Hata"), err?.message || tx("Fotoğraf seçilemedi."));
+      showAlert(tx("Hata"), tx("Fotoğraf seçilemedi."));
     } finally {
       setIsLoading(false);
     }
@@ -93,7 +93,7 @@ export default function ReferenceImagePicker({
         }
       }
     } catch (err: any) {
-      showAlert(tx("Hata"), err?.message || tx("Fotoğraf çekilemedi."));
+      showAlert(tx("Hata"), tx("Fotoğraf çekilemedi."));
     } finally {
       setIsLoading(false);
     }

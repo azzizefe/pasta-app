@@ -357,7 +357,7 @@ export default function ProfilePane({
         setIsPhotoModalOpen(false);
       }
     } catch (err: any) {
-      showAlert(tx("Hata"), err?.message || tx("Fotoğraf seçilemedi."));
+      showAlert(tx("Hata"), tx("Fotoğraf seçilemedi."));
     }
   }, []);
 
@@ -386,7 +386,7 @@ export default function ProfilePane({
         setIsPhotoModalOpen(false);
       }
     } catch (err: any) {
-      showAlert(tx("Hata"), err?.message || tx("Fotoğraf çekilemedi."));
+      showAlert(tx("Hata"), tx("Fotoğraf çekilemedi."));
     }
   }, []);
 

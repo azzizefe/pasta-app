@@ -541,3 +541,22 @@ export function UsersIcon({ size = 20, color, strokeWidth = 1.7 }: Props) {
   );
 }
 
+
+export function LayersIcon({ size = 20, color, strokeWidth = 1.7 }: Props) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M12 3 2 8l10 5 10-5-10-5Z" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+      <Path d="m2 13 10 5 10-5M2 17.5l10 5 10-5" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+    </Svg>
+  );
+}
+
+/** Curved arrow pointing back, used for undo. */
+export function UndoIcon({ size = 20, color, strokeWidth = 1.7 }: Props) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path d="M9 14 4 9l5-5" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+      <Path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" stroke={color} strokeWidth={strokeWidth} {...stroke} />
+    </Svg>
+  );
+}

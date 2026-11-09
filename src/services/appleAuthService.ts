@@ -99,7 +99,7 @@ export async function signInWithApple(): Promise<AppleAuthResult> {
     console.error('Apple ile giriş hatası:', error);
     return {
       success: false,
-      error: error?.message || tx("Apple ile giriş yapılırken bir sorun oluştu."),
+      error: tx("Apple ile giriş yapılırken bir sorun oluştu."),
     };
   }
 }

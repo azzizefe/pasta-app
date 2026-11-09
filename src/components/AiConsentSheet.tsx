@@ -19,7 +19,7 @@ export default function AiConsentSheet({ visible, onAccept, onDecline }: Props) 
   const insets = useSafeAreaInsets();
   const tx = useTx();
   // LanguageProvider lays the app out right-to-left for Arabic, so rows need no flipping here.
-  const sent = ["Pasta açıklaman ve seçtiğin detaylar", "Eklediysen ilham fotoğrafın"];
+  const sent = [tx("Pasta açıklaman ve seçtiğin detaylar"), tx("Eklediysen ilham fotoğrafın")];
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onDecline}>
@@ -38,7 +38,7 @@ export default function AiConsentSheet({ visible, onAccept, onDecline }: Props) 
                   <View style={styles.listIcon}>
                     {i === 0 ? <SparkleIcon size={14} color={home.gold} /> : <ImageIcon size={14} color={home.gold} />}
                   </View>
-                  <Text style={styles.listText}>{tx(item)}</Text>
+                  <Text style={styles.listText}>{item}</Text>
                 </View>
               ))}
             </View>

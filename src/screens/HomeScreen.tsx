@@ -14,8 +14,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import TabBar, { type TabKey } from '../components/TabBar';
-import CakeCarousel3D from '../components/CakeCarousel3D';
 import CakeFeatureCard from '../components/CakeFeatureCard';
+import PromptComposer from '../components/PromptComposer';
+import RecentCakes from '../components/RecentCakes';
 import ProfilePane from '../components/ProfilePane';
 import SavedPane from '../components/SavedPane';
 import UpcomingBanner from '../components/UpcomingBanner';
@@ -24,7 +25,7 @@ import { CalendarIcon, CoinsIcon } from '../components/Icons';
 import { FadeInUp, PressableScale } from '../components/motion';
 import { useCredits } from '../context/CreditsContext';
 import { useOccasions } from '../context/OccasionsContext';
-import { type CakeKind } from './CakeBuilderScreen';
+import { type CakeKind, type OpenBuilderOptions } from './CakeBuilderScreen';
 import { type CakeDetails } from '../types/savedCake';
 import { fonts, home } from '../theme/theme';
 import { PRIVACY_URL, TERMS_URL } from '../config/app';
@@ -57,7 +58,7 @@ type Props = {
   authProvider?: 'apple' | 'google' | null;
   onSignOut: () => void;
   onDeleteAccount: () => void;
-  onOpenBuilder: (kind: CakeKind, details?: CakeDetails) => void;
+  onOpenBuilder: (kind: CakeKind, details?: CakeDetails, options?: OpenBuilderOptions) => void;
 };
 
 export default function HomeScreen({
@@ -76,7 +77,7 @@ export default function HomeScreen({
   const [measuredPaneHeight, setMeasuredPaneHeight] = useState<number | null>(null);
   const [customName, setCustomName] = useState<string | null>(null);
   const { upcomingOccasions } = useOccasions();
-  const { credits, openPurchaseModal } = useCredits();
+  const { credits, openPurchaseModal } = useCredits();
 
   useEffect(() => {
     AsyncStorage.getItem('@lumiere_user_custom_name')
@@ -174,8 +175,10 @@ export default function HomeScreen({
       >
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={[styles.scroll, { paddingTop: 8, paddingBottom: 32 }]}
+          contentContainerStyle={[styles.scroll, { flexGrow: 1, paddingTop: 8, paddingBottom: 32 }]}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
         >
 
           {upcomingOccasions.length > 0 && (
@@ -190,8 +193,15 @@ export default function HomeScreen({
             </View>
           )}
 
-          <FadeInUp delay={120}>
-            <CakeCarousel3D onSelectCake={onOpenBuilder} />
+          <FadeInUp delay={120} style={styles.composerWrap}>
+            <PromptComposer
+              onGenerate={(kind, details) => onOpenBuilder(kind, details, { autoGenerate: true })}
+              onOpenBuilder={(kind, details) => onOpenBuilder(kind, details)}
+            />
+          </FadeInUp>
+
+          <FadeInUp delay={200} style={styles.recentWrap}>
+            <RecentCakes onOpenBuilder={(kind, details) => onOpenBuilder(kind, details)} onSeeAll={() => setTab('saved')} />
           </FadeInUp>
         </ScrollView>
       </View>
@@ -310,6 +320,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 0,
     paddingTop: 8,
     paddingBottom: 28,
+  },
+  composerWrap: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 24,
+  },
+  recentWrap: {
+    paddingHorizontal: 20,
   },
   bannerWrap: {
     paddingHorizontal: 20,

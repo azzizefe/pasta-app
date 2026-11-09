@@ -1,4 +1,4 @@
-import { expect, expectDialog, generateButton, choosePalette, openBuilder, signIn, test, WELCOME_CREDITS } from './helpers';
+import { expect, expectBalance, expectDialog, generateButton, choosePalette, openBuilder, signIn, test, WELCOME_CREDITS } from './helpers';
 
 test.describe('F08 profil', () => {
   test.beforeEach(async ({ page }) => {
@@ -43,7 +43,8 @@ test.describe('F08 profil', () => {
     await expect(page.getByRole('button', { name: 'Google ile Giriş Yap' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Google ile Giriş Yap' }).click();
-    await expect(page.getByRole('button', { name: `Kredi bakiyesi ${WELCOME_CREDITS}` })).toBeVisible();
+    await expect(page.getByText(/^(Merhaba|Hoş geldin)/)).toBeVisible();
+    await expectBalance(page, WELCOME_CREDITS);
     await page.getByRole('tab', { name: 'Koleksiyon' }).click();
     await expect(page.getByText('Koleksiyonun Henüz Boş')).toBeVisible();
   });

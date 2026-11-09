@@ -1,10 +1,9 @@
-import { expect, readCredits, signIn, test, WELCOME_CREDITS } from './helpers';
+import { expect, openCreditsStore, readCredits, signIn, test, WELCOME_CREDITS } from './helpers';
 
 test.describe('F05 kredi mağazası', () => {
   test.beforeEach(async ({ page }) => {
     await signIn(page);
-    await page.getByRole('button', { name: `Kredi bakiyesi ${WELCOME_CREDITS}` }).click();
-    await expect(page.getByText('Kredilerim')).toBeVisible();
+    await openCreditsStore(page);
   });
 
   test('F05-H1 paketler ve tasarruf oranları', async ({ page }) => {

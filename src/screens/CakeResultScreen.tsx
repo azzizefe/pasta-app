@@ -354,7 +354,7 @@ export default function CakeResultScreen({
         }
       });
     } catch (err: any) {
-      setFeedbackMessage(tx("İndirme hatası: ") + (err?.message || tx("Sorun oluştu")));
+      setFeedbackMessage(tx("Görsel indirilemedi."));
       setTimeout(() => setFeedbackMessage(null), 4000);
     } finally {
       setIsDownloading(false);

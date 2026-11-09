@@ -25,7 +25,7 @@ test.describe('F07 özel gün takvimi', () => {
     await expectDialog(
       page,
       () => page.getByRole('button', { name: 'Hatırlatıcıyı Kaydet' }).click(),
-      /(1 hafta önce|yakın olduğu için).*bildirim gelecek/,
+      /(1 hafta önce|yakın olduğu için).*bildirim.*gelecek/,
     );
     await expect(page.getByText('Deniz', { exact: true })).toBeVisible();
   });

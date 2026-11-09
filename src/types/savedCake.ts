@@ -44,6 +44,8 @@ export interface SavedCake {
   prompt: string;
   details?: CakeDetails;
   isFavorite?: boolean;
+  /** When the cake was last liked; liked cakes are listed newest-liked first. */
+  likedAt?: number;
   /** Gemini 3.1 Flash Lite tarafından üretilen ev yapımı pasta tarifi */
   recipe?: string;
 }

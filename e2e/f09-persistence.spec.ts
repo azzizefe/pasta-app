@@ -1,4 +1,4 @@
-import { DESIGN_COST, expect, generateButton, choosePalette, openBuilder, readCredits, seedCredits, signIn, test } from './helpers';
+import { DESIGN_COST, expect, expectBalance, generateButton, choosePalette, openBuilder, readCredits, seedCredits, signIn, test } from './helpers';
 
 test.describe('F09 kalıcılık', () => {
   test('F09-H1 bakiye ve koleksiyon yenileme sonrası korunur', async ({ page }) => {
@@ -12,7 +12,8 @@ test.describe('F09 kalıcılık', () => {
     await page.reload();
     const signInButton = page.getByRole('button', { name: 'Google ile Giriş Yap' });
     if (await signInButton.isVisible()) await signInButton.click();
-    await expect(page.getByRole('button', { name: `Kredi bakiyesi ${30 - DESIGN_COST}` })).toBeVisible();
+    await expect(page.getByText(/^(Merhaba|Hoş geldin)/)).toBeVisible();
+    await expectBalance(page, 30 - DESIGN_COST);
     await page.getByRole('tab', { name: 'Koleksiyon' }).click();
     await expect(page.getByText('Koleksiyonun Henüz Boş')).toBeHidden();
   });

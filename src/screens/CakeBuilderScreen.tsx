@@ -401,17 +401,22 @@ function NextStepButton({ label, onPress }: { label: string; onPress: () => void
   );
 }
 
+export type OpenBuilderOptions = {
+  /** Skip the form and go straight to generating (the caller already checked credits). */
+  autoGenerate?: boolean;
+};
+
 type Props = {
   kind: CakeKind;
   initialDetails?: CakeDetails;
   onClose: () => void;
-};
+} & OpenBuilderOptions;
 
 /**
  * Full-screen cake configurator: pick serving size, tiers, palette, and
  * decoration density, then compose that into a single design prompt.
  */
-export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Props) {
+export default function CakeBuilderScreen({ kind, initialDetails, onClose, autoGenerate }: Props) {
   useTx();
   const insets = useSafeAreaInsets();
   const info = CAKE_KIND_INFO[kind];
@@ -586,8 +591,9 @@ export default function CakeBuilderScreen({ kind, initialDetails, onClose }: Pro
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, []);
 
-  const [showResult, setShowResult] = useState(false);
-  const quality: ImageQuality = '4k';
+  // Going back from an auto-generated result lands on this form, filled in.
+  const [showResult, setShowResult] = useState(Boolean(autoGenerate));
+  const quality: ImageQuality = initialDetails?.quality ?? '4k';
   const cost = getGenerationCost(quality, kind, isSecondCakeDiscountActive);
   // Only a real, active discount shows a struck-through price; there is no permanent "was" price.
   const listPrice = isSecondCakeDiscountActive ? CREDITS_PER_GENERATION : cost;
