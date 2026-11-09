@@ -6,9 +6,12 @@ test.describe('F02 ana sayfa ve gezinme', () => {
   });
 
   test('F02-H1 sekmeler arasında gezinme', async ({ page }) => {
-    await page.getByRole('tab', { name: 'Koleksiyon' }).click();
-    await expect(page.getByText('Koleksiyonum')).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Koleksiyon' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('tab', { name: 'Koleksiyon' })).toHaveCount(0);
+    await page.getByRole('tab', { name: 'Takvim' }).click();
+    await expect(page.getByText('Özel Gün Takvimi', { exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Takvim' })).toHaveAttribute('aria-selected', 'true');
+    // A tab pane, not a modal: no back button.
+    await expect(page.getByRole('button', { name: 'Geri' })).toHaveCount(0);
 
     await page.getByRole('tab', { name: 'Hesabım' }).click();
     await expect(page.getByText('Tasarım Bakiyesi')).toBeVisible();
@@ -45,9 +48,10 @@ test.describe('F02 ana sayfa ve gezinme', () => {
     await expect(page.getByText('Hangi pastayı tasarlayalım?')).toBeHidden();
   });
 
-  test('F02-H3 takvim butonu Özel Gün Takvimini açar', async ({ page }) => {
+  test('F02-H3 takvim butonu Takvim sekmesini açar', async ({ page }) => {
     await page.getByRole('button', { name: 'Özel Gün Takvimi ve Hatırlatıcılar' }).click();
-    await expect(page.getByText('Özel Gün Takvimi')).toBeVisible();
+    await expect(page.getByText('Özel Gün Takvimi', { exact: true })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Takvim' })).toHaveAttribute('aria-selected', 'true');
   });
 
   test('F02-E1 375px genişlikte yatay taşma yok', async ({ page }) => {

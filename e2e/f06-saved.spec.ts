@@ -1,11 +1,9 @@
-import { expect, expectDialog, generateButton, choosePalette, openBuilder, signIn, test } from './helpers';
+import { expect, expectDialog, expectNoDesigns, generateButton, choosePalette, openBuilder, openCollection, signIn, test } from './helpers';
 
 test.describe('F06 koleksiyon', () => {
   test('F06-E1 yeni kullanıcıda boş durum', async ({ page }) => {
     await signIn(page);
-    await page.getByRole('tab', { name: 'Koleksiyon' }).click();
-    await expect(page.getByText('Koleksiyonun Henüz Boş')).toBeVisible();
-    await expect(page.getByText('İlk Pastanı Tasarla')).toBeVisible();
+    await expectNoDesigns(page);
   });
 
   test('F06-H1 ve F06-H2 üretilen tasarım listede görünür ve silinir', async ({ page }) => {
@@ -17,7 +15,7 @@ test.describe('F06 koleksiyon', () => {
 
     await page.getByRole('button', { name: 'Geri' }).click();
     await page.getByRole('button', { name: 'Geri' }).click();
-    await page.getByRole('tab', { name: 'Koleksiyon' }).click();
+    await openCollection(page);
     await expect(page.getByText('Koleksiyonun Henüz Boş')).toBeHidden();
 
     await page.getByText('Düğün Pastası').last().click();

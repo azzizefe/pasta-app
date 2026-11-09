@@ -2,12 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BookmarkIcon, HomeIcon, UserIcon } from './Icons';
+import { CalendarIcon, HomeIcon, UserIcon } from './Icons';
 import { NATIVE } from './motion';
 import { useTx } from '../context/LanguageContext';
 import { home } from '../theme/theme';
 
-export type TabKey = 'home' | 'saved' | 'profile';
+/** 'saved' has no button in the bar; it opens from the home screen's "Tümü" link. */
+export type TabKey = 'home' | 'calendar' | 'saved' | 'profile';
 
 type Props = {
   active: TabKey;
@@ -21,7 +22,7 @@ const TABS: Array<{
   label: string;
 }> = [
   { key: 'home', Icon: HomeIcon, label: 'Atölye' },
-  { key: 'saved', Icon: BookmarkIcon, label: 'Koleksiyon' },
+  { key: 'calendar', Icon: CalendarIcon, label: 'Takvim' },
   { key: 'profile', Icon: UserIcon, label: 'Hesabım' },
 ];
 
@@ -36,6 +37,7 @@ export default function TabBar({ active, onChange }: Props) {
   const position = useRef(new Animated.Value(activeIndex)).current;
 
   useEffect(() => {
+    if (activeIndex < 0) return;
     Animated.spring(position, {
       toValue: activeIndex,
       speed: 16,
@@ -52,7 +54,7 @@ export default function TabBar({ active, onChange }: Props) {
       style={[styles.bar, { paddingBottom: insets.bottom || 10 }]}
       onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
     >
-      {barWidth > 0 && (
+      {barWidth > 0 && activeIndex >= 0 && (
         <Animated.View
           pointerEvents="none"
           style={[

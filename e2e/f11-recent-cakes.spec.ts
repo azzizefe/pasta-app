@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, seedSavedCakes, signIn, test } from './helpers';
+import { expect, openCollection, seedSavedCakes, signIn, test } from './helpers';
 
 /** Card titles in the order the home screen shows them. */
 const order = (page: Page) =>
@@ -39,8 +39,8 @@ test.describe('F11 son tasarımlar', () => {
     await expect.poll(() => order(page)).toEqual(['Pasta A', 'Pasta C', 'Pasta B']);
     await expect(page.getByRole('button', { name: 'Pasta A beğenildi', exact: true })).toBeVisible();
 
-    // The collection tab shows the like too.
-    await page.getByRole('tab', { name: 'Koleksiyon' }).click();
+    // The collection shows the like too.
+    await openCollection(page);
     await page.getByText('Favoriler').first().click();
     await expect(page.getByText('Pasta A').last()).toBeVisible();
   });

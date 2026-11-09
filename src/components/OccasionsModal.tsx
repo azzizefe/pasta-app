@@ -107,6 +107,8 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   onOpenBuilder: (kind: CakeKind, details?: CakeDetails) => void;
+  /** Renders as a tab pane (no modal, no back button) instead of a full-screen modal. */
+  embedded?: boolean;
 }
 
 const MONTH_NAMES = [
@@ -181,6 +183,7 @@ export default function OccasionsModal({
   visible,
   onClose,
   onOpenBuilder,
+  embedded = false,
 }: Props) {
   useTx();
   const insets = useSafeAreaInsets();
@@ -446,35 +449,34 @@ export default function OccasionsModal({
     );
   };
 
-  return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="fullScreen"
-      statusBarTranslucent
-      onRequestClose={onClose}
-    >
-      <View style={styles.root}>
-        <LinearGradient
-          colors={[home.washTop, home.washMid, home.washEnd]}
-          locations={[0, 0.24, 0.58]}
-          style={StyleSheet.absoluteFill}
-        />
+  const content = (
+      <View style={[styles.root, embedded && styles.rootEmbedded]}>
+        {!embedded && (
+          <LinearGradient
+            colors={[home.washTop, home.washMid, home.washEnd]}
+            locations={[0, 0.24, 0.58]}
+            style={StyleSheet.absoluteFill}
+          />
+        )}
 
         {/* Header */}
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 14) + 6 }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={tx("Geri")}
-            onPress={onClose}
-            hitSlop={10}
-            style={styles.circleBtn}
-          >
-            <ChevronLeftIcon size={20} color={home.ink} strokeWidth={2} />
-          </Pressable>
+        <View style={[styles.header, { paddingTop: embedded ? 4 : Math.max(insets.top, 14) + 6 }]}>
+          {!embedded && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={tx("Geri")}
+              onPress={onClose}
+              hitSlop={10}
+              style={styles.circleBtn}
+            >
+              <ChevronLeftIcon size={20} color={home.ink} strokeWidth={2} />
+            </Pressable>
+          )}
 
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{tx("Özel Gün Takvimi")}</Text>
+          <View style={[styles.headerCenter, embedded && styles.headerCenterEmbedded]}>
+            <Text style={[styles.headerTitle, embedded && styles.headerTitleEmbedded]} numberOfLines={1}>
+              {tx("Özel Gün Takvimi")}
+            </Text>
           </View>
 
           <Pressable
@@ -496,7 +498,7 @@ export default function OccasionsModal({
           style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingBottom: Math.max(insets.bottom, 20) + 32 },
+            { paddingBottom: embedded ? 32 : Math.max(insets.bottom, 20) + 32 },
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -740,6 +742,19 @@ export default function OccasionsModal({
           )}
         </ScrollView>
       </View>
+  );
+
+  if (embedded) return content;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="fullScreen"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      {content}
     </Modal>
   );
 }
@@ -766,6 +781,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingHorizontal: 8,
+  },
+  headerCenterEmbedded: {
+    alignItems: 'flex-start',
+    paddingHorizontal: 2,
+  },
+  headerTitleEmbedded: {
+    fontSize: 22,
+  },
+  rootEmbedded: {
+    backgroundColor: 'transparent',
   },
   headerTitle: {
     fontFamily: fonts.display,

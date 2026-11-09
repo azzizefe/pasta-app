@@ -73,7 +73,6 @@ export default function HomeScreen({
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const [tab, setTab] = useState<TabKey>('home');
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [measuredPaneHeight, setMeasuredPaneHeight] = useState<number | null>(null);
   const [customName, setCustomName] = useState<string | null>(null);
   const { upcomingOccasions } = useOccasions();
@@ -149,7 +148,7 @@ export default function HomeScreen({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={tx("Özel Gün Takvimi ve Hatırlatıcılar")}
-              onPress={() => setIsCalendarOpen(true)}
+              onPress={() => setTab('calendar')}
               style={styles.headerButton}
               hitSlop={8}
             >
@@ -186,7 +185,7 @@ export default function HomeScreen({
               <FadeInUp delay={80}>
                 <UpcomingBanner
                   occasion={upcomingOccasions[0]}
-                  onOpenCalendar={() => setIsCalendarOpen(true)}
+                  onOpenCalendar={() => setTab('calendar')}
                   onOpenBuilder={onOpenBuilder}
                 />
               </FadeInUp>
@@ -206,6 +205,10 @@ export default function HomeScreen({
         </ScrollView>
       </View>
 
+      <View style={[styles.pane, tab !== 'calendar' && styles.paneHidden]}>
+        <OccasionsModal embedded visible onClose={() => setTab('home')} onOpenBuilder={onOpenBuilder} />
+      </View>
+
       <View style={[styles.pane, tab !== 'saved' && styles.paneHidden]}>
         <SavedPane onOpenBuilder={onOpenBuilder} />
       </View>
@@ -219,19 +222,13 @@ export default function HomeScreen({
           onTermsOfUse={handleOpenTerms}
           onSignOut={onSignOut}
           onDeleteAccount={onDeleteAccount}
-          onOpenCalendar={() => setIsCalendarOpen(true)}
+          onOpenCalendar={() => setTab('calendar')}
           onUpdateName={setCustomName}
         />
       </View>
 
       <TabBar active={tab} onChange={setTab} />
 
-      {/* Özel Günler & Hatırlatıcı Takvim Modalı */}
-      <OccasionsModal
-        visible={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-        onOpenBuilder={onOpenBuilder}
-      />
     </View>
   );
 }

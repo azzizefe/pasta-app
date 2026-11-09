@@ -137,6 +137,20 @@ export async function seedCredits(page: Page, credits: number) {
   );
 }
 
+/** The collection has no tab; it opens from "Tümü" in the home screen's recent designs. */
+export async function openCollection(page: Page) {
+  await page.getByRole('tab', { name: 'Atölye' }).click();
+  await page.getByRole('button', { name: 'Tüm tasarımları gör' }).click();
+  await expect(page.getByText('Koleksiyonum')).toBeVisible();
+}
+
+/** Home shows the empty recent-designs card, so the collection is empty too. */
+export async function expectNoDesigns(page: Page) {
+  await page.getByRole('tab', { name: 'Atölye' }).click();
+  await expect(page.getByText('Henüz bir tasarımın yok')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tüm tasarımları gör' })).toHaveCount(0);
+}
+
 export const SAVED_CAKES_KEY = '@lumiere_saved_cakes_v1';
 
 /** Seeds saved designs once: `titles[0]` is the oldest, the last one the newest. */
